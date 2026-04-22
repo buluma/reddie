@@ -110,7 +110,6 @@ function createWindow() {
 app.whenReady().then(async () => {
   createWindow();
   
-  // Try to connect on startup if configured
   if (config.redmineApiKey) {
     await connect();
   }
@@ -136,7 +135,6 @@ ipcMain.handle('get-config', async () => {
 ipcMain.handle('save-config', async (event, newConfig) => {
   config = { ...config, ...newConfig };
   console.log('Config saved:', config);
-  // Try to connect with new config
   const result = await connect();
   return result;
 });
