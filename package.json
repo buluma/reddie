@@ -1,28 +1,29 @@
 {
   "name": "reddie",
   "version": "1.0.0",
-  "description": "",
-  "main": "src/main.js",
+  "description": "Reddie - Kanban app with Redmine API integration",
+  "main": "src-tauri/src/main.rs",
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tauri dev",
+    "build": "tauri build"
   },
-  "build": {
-    "extraMetadata": {
-      "main": "src/main.js"
-    },
-    "asar": true,
-    "mac": {
-      "category": "public.app-category.productivity"
-    }
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buluma/reddie.git"
   },
-  "type": "commonjs",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/buluma/reddie/issues"
+  },
+  "homepage": "https://github.com/buluma/reddie#readme",
   "devDependencies": {
-    "electron": "^41.2.2",
-    "electron-builder": "^26.8.1"
+    "@tauri-apps/cli": "^2"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2",
     "sortablejs": "^1.15.7"
   }
 }

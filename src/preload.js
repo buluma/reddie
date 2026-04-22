@@ -1,9 +1,10 @@
-const { contextBridge, ipcRenderer } = require('electron');
+// Tauri API bridge
+const { invoke } = window.__TAURI__.core;
 
-contextBridge.exposeInMainWorld('reddieAPI', {
-  getConfig: () => ipcRenderer.invoke('get-config'),
-  saveConfig: (config) => ipcRenderer.invoke('save-config', config),
-  fetchIssues: (params) => ipcRenderer.invoke('fetch-issues', params),
-  updateStatus: (issueId, statusId) => ipcRenderer.invoke('update-status', { issueId, statusId }),
-  addComment: (issueId, comment) => ipcRenderer.invoke('add-comment', { issueId, comment }),
-});
+window.reddieAPI = {
+  getConfig: () => invoke('get_config_cmd'),
+  saveConfig: (config) => invoke('save_config_cmd', { newConfig: config }),
+  fetchIssues: (params) => invoke('fetch_issues_cmd', { params }),
+  updateStatus: (issueId, statusId) => invoke('update_status_cmd', { issueId, statusId }),
+  addComment: (issueId, comment) => invoke('add_comment_cmd', { issueId, comment }),
+};
