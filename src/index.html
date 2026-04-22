@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban App</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="drag-handle-bar"></div>
+  <div class="app-container">
+    <header>
+      <h1>Todo Dashboard</h1>
+    </header>
+    <main class="dashboard">
+      <div class="column" id="backlog">
+        <div class="column-header">
+          <h2>Backlog</h2>
+          <button class="add-btn" onclick="addTask('backlog')">+</button>
+        </div>
+        <div class="task-list" id="backlog-list"></div>
+      </div>
+      <div class="column" id="todo">
+        <div class="column-header">
+          <h2>To Do</h2>
+          <button class="add-btn" onclick="addTask('todo')">+</button>
+        </div>
+        <div class="task-list" id="todo-list"></div>
+      </div>
+      <div class="column" id="in-progress">
+        <div class="column-header">
+          <h2>In Progress</h2>
+          <button class="add-btn" onclick="addTask('in-progress')">+</button>
+        </div>
+        <div class="task-list" id="in-progress-list"></div>
+      </div>
+      <div class="column" id="done">
+        <div class="column-header">
+          <h2>Done</h2>
+          <button class="add-btn" onclick="addTask('done')">+</button>
+        </div>
+        <div class="task-list" id="done-list"></div>
+      </div>
+    </main>
+  </div>
+  <script src="vendor/sortable.min.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
