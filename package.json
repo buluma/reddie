@@ -1,5 +1,5 @@
 {
-  "name": "electron",
+  "name": "reddie",
   "version": "1.0.0",
   "description": "",
   "main": "src/main.js",
@@ -8,9 +8,15 @@
     "build": "electron-builder",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "build": {
+    "extraMetadata": {
+      "main": "src/main.js"
+    },
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.productivity"
+    }
+  },
   "type": "commonjs",
   "devDependencies": {
     "electron": "^41.2.2",

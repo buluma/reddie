@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('electronAPI', {
-  // Add any IPC methods here if needed later
+contextBridge.exposeInMainWorld('reddieAPI', {
+  getConfig: () => ipcRenderer.invoke('get-config'),
+  saveConfig: (config) => ipcRenderer.invoke('save-config', config),
+  fetchIssues: (params) => ipcRenderer.invoke('fetch-issues', params),
+  updateStatus: (issueId, statusId) => ipcRenderer.invoke('update-status', { issueId, statusId }),
+  addComment: (issueId, comment) => ipcRenderer.invoke('add-comment', { issueId, comment }),
 });
