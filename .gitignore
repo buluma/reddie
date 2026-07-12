@@ -2,3 +2,4 @@
 /src-tauri/target
 .env
 *.log
+CLAUDE.md
