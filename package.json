@@ -26,6 +26,12 @@
     "directories": {
       "buildResources": "build"
     },
+    "files": [
+      "**/*",
+      "!.env",
+      "!.env.example",
+      "!src/__tests__/**"
+    ],
     "mac": {
       "icon": "build/icon.icns"
     },
