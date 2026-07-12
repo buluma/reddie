@@ -5,8 +5,6 @@ const statusMap = {
   'Resolved': 'done',
   'Feedback': 'todo',
   'Closed': 'done',
-  'In Progress': 'in-progress',
-  'Resolved': 'done',
   'Hold': 'todo',
   'Testing': 'in-progress',
   1: 'backlog',
@@ -68,14 +66,16 @@ function getColumnFromStatus(status) {
   return statusMap[name] || statusMap[id] || 'backlog';
 }
 
-function getStatusName(column) {
+function getStatusId(column) {
+  // Converge's /api/issues/[id]/status expects a numeric statusId
+  // (StatusCatalog id), not a status name string.
   const reverseMap = {
-    'backlog': 'New',
-    'todo': 'Feedback',
-    'in-progress': 'In Progress',
-    'done': 'Resolved'
+    'backlog': 1,       // New
+    'todo': 4,          // Feedback
+    'in-progress': 2,   // In Progress
+    'done': 3           // Resolved
   };
-  return reverseMap[column] || 'New';
+  return reverseMap[column] || 1;
 }
 
 function initSortable() {
@@ -91,8 +91,8 @@ function initSortable() {
         const oldColumn = evt.from.id.replace('-list', '');
         
         if (newColumn !== oldColumn && itemEl.dataset.issueId) {
-          const statusName = getStatusName(newColumn);
-          window.reddieAPI.updateStatus(itemEl.dataset.issueId, statusName)
+          const statusId = getStatusId(newColumn);
+          window.reddieAPI.updateStatus(itemEl.dataset.issueId, statusId)
             .then(() => saveState())
             .catch(console.error);
         } else {
@@ -156,18 +156,30 @@ function saveState() {
   localStorage.setItem('kanban-state', JSON.stringify(state));
 }
 
-function loadState() {
+function getState() {
   const stateStr = localStorage.getItem('kanban-state');
-  if (stateStr) {
-    const state = JSON.parse(stateStr);
-    Object.keys(state).forEach(columnId => {
-      const list = document.getElementById(`${columnId}-list`);
-      state[columnId].forEach(task => {
-        const card = createTaskCard(task.id, task.content, task.issueId);
-        list.appendChild(card);
-      });
-    });
+  if (!stateStr) return null;
+  try {
+    return JSON.parse(stateStr);
+  } catch {
+    return null;
   }
+}
+
+function renderState(state) {
+  columns.forEach(columnId => {
+    const list = document.getElementById(`${columnId}-list`);
+    list.innerHTML = '';
+    (state[columnId] || []).forEach(task => {
+      const card = createTaskCard(task.id, task.content, task.issueId);
+      list.appendChild(card);
+    });
+  });
+}
+
+function loadState() {
+  const state = getState();
+  if (state) renderState(state);
 }
 
 async function loadFromAPI() {
@@ -179,21 +191,31 @@ async function loadFromAPI() {
     }
 
     const issues = response.items || [];
-    const state = {};
-    
-    columns.forEach(id => { state[id] = []; });
+    const apiState = {};
+    columns.forEach(id => { apiState[id] = []; });
 
     issues.forEach(issue => {
       const column = getColumnFromStatus(issue.status);
       const content = issue.subject || `Issue #${issue.id}`;
-      state[column].push({
+      apiState[column].push({
         id: `api-${issue.redmineIssueId || issue.id}`,
         content: content,
         issueId: issue.redmineIssueId || null
       });
     });
 
-    localStorage.setItem('kanban-state', JSON.stringify(state));
+    // Merge with existing state instead of overwriting it: keep any
+    // manually-added local card (no issueId) exactly where it was, and
+    // replace all API-derived cards with the fresh fetch.
+    const prevState = getState() || {};
+    const mergedState = {};
+    columns.forEach(id => {
+      const localOnly = (prevState[id] || []).filter(task => !task.issueId);
+      mergedState[id] = [...apiState[id], ...localOnly];
+    });
+
+    localStorage.setItem('kanban-state', JSON.stringify(mergedState));
+    renderState(mergedState);
   } catch (err) {
     console.error('Failed to load from API:', err);
   }
@@ -216,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch(e) {}
   }
   
-  await loadFromAPI();
   loadState();
   initSortable();
+  await loadFromAPI();
 });
