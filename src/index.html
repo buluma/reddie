@@ -18,6 +18,10 @@
         </span>
       </div>
       <div class="header-right">
+        <div class="board-mode-toggle">
+          <button class="board-mode-btn active" data-mode="assigned" onclick="setBoardMode('assigned')">My Issues</button>
+          <button class="board-mode-btn" data-mode="authored" onclick="setBoardMode('authored')">Authored by Me</button>
+        </div>
         <input type="text" id="board-search" class="board-search" placeholder="Search…" oninput="filterBoard(this.value)">
         <button class="new-ticket-btn" onclick="openNewTicket()"><span class="new-ticket-icon">+</span> New Ticket</button>
         <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">🌙</button>

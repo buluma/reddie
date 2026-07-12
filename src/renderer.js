@@ -1,6 +1,17 @@
 const columns = ['backlog', 'todo', 'in-progress', 'done'];
 const AUTO_REFRESH_MS = 60000;
 
+// 'assigned' (default): listMyIssues(), assignee-filtered. 'authored':
+// listAuthoredIssues() - for tickets you created but reassigned to
+// someone else, which otherwise drop out of the board with no way back.
+// Each mode keeps its own localStorage state (and its own local scratch
+// cards) so switching doesn't bleed one board's cards into the other.
+let boardMode = 'assigned';
+
+function getStateKey() {
+  return boardMode === 'authored' ? 'kanban-state-authored' : 'kanban-state';
+}
+
 // Populated from the connected Redmine instance's real issue_statuses via
 // getColumnMapping() - no hardcoded status ids, this varies per instance.
 let columnMapping = { statusIdToColumn: {}, columnToStatusId: {} };
@@ -735,11 +746,11 @@ function saveState() {
       issueId: card.dataset.issueId || null
     }));
   });
-  localStorage.setItem('kanban-state', JSON.stringify(state));
+  localStorage.setItem(getStateKey(), JSON.stringify(state));
 }
 
 function getState() {
-  const stateStr = localStorage.getItem('kanban-state');
+  const stateStr = localStorage.getItem(getStateKey());
   if (!stateStr) return null;
   try {
     return JSON.parse(stateStr);
@@ -803,7 +814,9 @@ function notifyRemoteChanges(nextIssueColumns) {
 
 async function loadFromAPI({ notifyChanges = false } = {}) {
   try {
-    const response = await window.reddieAPI.fetchIssues();
+    const response = boardMode === 'authored'
+      ? await window.reddieAPI.fetchAuthoredIssues()
+      : await window.reddieAPI.fetchIssues();
     if (response.error) {
       console.error('API Error:', response.error);
       showToast(`Couldn't load issues: ${response.error}`, 'error');
@@ -839,11 +852,34 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
       mergedState[id] = [...apiState[id], ...localOnly];
     });
 
-    localStorage.setItem('kanban-state', JSON.stringify(mergedState));
+    localStorage.setItem(getStateKey(), JSON.stringify(mergedState));
     renderState(mergedState);
   } catch (err) {
     console.error('Failed to load from API:', err);
   }
+}
+
+async function setBoardMode(mode) {
+  if (mode === boardMode) return;
+  boardMode = mode;
+  // The two modes track entirely different ticket sets - diffing one
+  // against the other's leftover tracker would misreport every ticket in
+  // the newly-active mode as either "moved" or "left the board".
+  knownIssueColumns = {};
+
+  document.querySelectorAll('.board-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+
+  const cached = getState();
+  if (cached) {
+    renderState(cached);
+  } else {
+    columns.forEach(id => {
+      document.getElementById(`${id}-list`).innerHTML = '<div class="detail-loading">Loading…</div>';
+    });
+  }
+  await loadFromAPI();
 }
 
 // Global scope
@@ -866,6 +902,7 @@ window.changeAssignee = changeAssignee;
 window.changePriority = changePriority;
 window.uploadAttachment = uploadAttachment;
 window.saveSubjectEdit = saveSubjectEdit;
+window.setBoardMode = setBoardMode;
 window.openNewTicket = openNewTicket;
 window.closeNewTicket = closeNewTicket;
 window.loadNewTicketTrackers = loadNewTicketTrackers;

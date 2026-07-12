@@ -173,6 +173,16 @@ class RedmineClient {
     return result.issues || [];
   }
 
+  // Tickets you created but reassigned to someone else drop out of
+  // listMyIssues() entirely (it's assignee-filtered) - this is the only
+  // way to keep track of them.
+  async listAuthoredIssues() {
+    const result = await this.get(
+      '/issues.json?author_id=me&status_id=*&limit=100&sort=updated_on:desc',
+    );
+    return result.issues || [];
+  }
+
   async getIssueDetail(issueId) {
     const [issueResult, timeEntriesResult] = await Promise.all([
       this.get(`/issues/${issueId}.json?include=journals,attachments,relations,allowed_statuses`),

@@ -87,6 +87,16 @@ async function fetchIssues() {
   }
 }
 
+async function fetchAuthoredIssues() {
+  try {
+    const issues = await client.listAuthoredIssues();
+    return { items: issues };
+  } catch (err) {
+    console.error('Fetch authored issues failed:', err.message);
+    return { items: [], error: err.message };
+  }
+}
+
 async function fetchIssueDetail(issueId) {
   try {
     return await client.getIssueDetail(issueId);
@@ -209,6 +219,10 @@ ipcMain.handle('save-column-overrides', async (event, overrides) => {
 
 ipcMain.handle('fetch-issues', async () => {
   return await fetchIssues();
+});
+
+ipcMain.handle('fetch-authored-issues', async () => {
+  return await fetchAuthoredIssues();
 });
 
 ipcMain.handle('fetch-issue-detail', async (event, issueId) => {

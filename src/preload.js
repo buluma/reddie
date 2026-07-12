@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   fetchStatuses: () => ipcRenderer.invoke('fetch-statuses'),
   saveColumnOverrides: (overrides) => ipcRenderer.invoke('save-column-overrides', overrides),
   fetchIssues: (params) => ipcRenderer.invoke('fetch-issues', params),
+  fetchAuthoredIssues: () => ipcRenderer.invoke('fetch-authored-issues'),
   fetchIssueDetail: (issueId) => ipcRenderer.invoke('fetch-issue-detail', issueId),
   updateStatus: (issueId, statusId) => ipcRenderer.invoke('update-status', { issueId, statusId }),
   fetchProjectMembers: (projectId) => ipcRenderer.invoke('fetch-project-members', projectId),
