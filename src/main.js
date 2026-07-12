@@ -12,6 +12,7 @@ autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
 function sendUpdateStatus(status, extra = {}) {
+  console.log('Update status:', status, extra);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('update-status', { status, ...extra });
   }
