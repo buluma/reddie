@@ -95,6 +95,35 @@ class RedmineClient {
     return (result.time_entry_activities || []).filter((a) => a.active !== false);
   }
 
+  async listProjects() {
+    const result = await this.get('/projects.json?limit=100');
+    return result.projects || [];
+  }
+
+  async listProjectTrackers(projectId) {
+    // Trackers are enabled per-project, not global - /trackers.json lists
+    // every tracker in the whole Redmine instance regardless of whether
+    // it's actually usable on a given project, which lets a create-ticket
+    // form offer an invalid project/tracker pairing. Redmine's own create
+    // validation rejects that pairing with a confusing "Tracker cannot be
+    // blank" rather than "invalid tracker" (confirmed against a real
+    // instance), so this has to be scoped per-project from the start.
+    const result = await this.get(`/projects/${projectId}.json?include=trackers`);
+    return (result.project && result.project.trackers) || [];
+  }
+
+  createIssue({ projectId, trackerId, subject, description, assigneeId }) {
+    return this.post('/issues.json', {
+      issue: {
+        project_id: projectId,
+        tracker_id: trackerId,
+        subject,
+        description: description || '',
+        ...(assigneeId ? { assigned_to_id: assigneeId } : {}),
+      },
+    });
+  }
+
   async listMyIssues() {
     const result = await this.get(
       '/issues.json?assigned_to_id=me&status_id=*&limit=100&sort=updated_on:desc',

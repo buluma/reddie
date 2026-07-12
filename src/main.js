@@ -41,6 +41,7 @@ let client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
 let columnMapping = { statusIdToColumn: {}, columnToStatusId: {} };
 let activities = [];
 let lastStatuses = [];
+let currentUserId = null;
 
 function rebuildClient() {
   client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
@@ -59,6 +60,7 @@ async function connect() {
     lastStatuses = statuses;
     columnMapping = buildColumnMapping(statuses, config.columnOverrides);
     activities = activityList;
+    currentUserId = user && user.id;
     return { ok: true, user };
   } catch (err) {
     console.error('Connect failed:', err.message);
@@ -208,6 +210,39 @@ ipcMain.handle('update-status', async (event, { issueId, statusId }) => {
   try {
     await client.updateStatus(issueId, statusId);
     return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('fetch-projects', async () => {
+  try {
+    const projects = await client.listProjects();
+    return { items: projects };
+  } catch (err) {
+    return { items: [], error: err.message };
+  }
+});
+
+ipcMain.handle('fetch-project-trackers', async (event, projectId) => {
+  try {
+    const trackers = await client.listProjectTrackers(projectId);
+    return { items: trackers };
+  } catch (err) {
+    return { items: [], error: err.message };
+  }
+});
+
+ipcMain.handle('create-issue', async (event, { projectId, trackerId, subject, description }) => {
+  try {
+    const result = await client.createIssue({
+      projectId,
+      trackerId,
+      subject,
+      description,
+      assigneeId: currentUserId,
+    });
+    return { ok: true, issue: result.issue };
   } catch (err) {
     return { error: err.message };
   }

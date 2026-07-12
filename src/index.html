@@ -19,6 +19,7 @@
       </div>
       <div class="header-right">
         <input type="text" id="board-search" class="board-search" placeholder="Search…" oninput="filterBoard(this.value)">
+        <button class="secondary-btn" onclick="openNewTicket()">New Ticket…</button>
         <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">🌙</button>
         <button class="settings-btn" onclick="openSettings()">⚙️</button>
       </div>
@@ -92,6 +93,37 @@
       </div>
       <div class="detail-modal-footer">
         <button id="column-mapping-save-btn" class="comment-submit-btn" style="align-self: stretch;" onclick="saveColumnMappingOverrides()">Save mapping</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Ticket Modal -->
+  <div id="new-ticket-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>New Ticket</h2>
+        <button class="close-btn" onclick="closeNewTicket()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Project</label>
+          <select id="new-ticket-project" onchange="loadNewTicketTrackers()"></select>
+        </div>
+        <div class="form-group">
+          <label>Tracker</label>
+          <select id="new-ticket-tracker"></select>
+        </div>
+        <div class="form-group">
+          <label>Subject</label>
+          <input type="text" id="new-ticket-subject" placeholder="What needs doing?">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="new-ticket-description" rows="4" placeholder="Optional details"></textarea>
+        </div>
+        <div class="form-actions">
+          <button id="new-ticket-submit-btn" onclick="submitNewTicket()">Create</button>
+        </div>
       </div>
     </div>
   </div>

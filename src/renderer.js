@@ -381,6 +381,75 @@ function closeColumnMapping() {
   document.getElementById('column-mapping-modal').classList.remove('show');
 }
 
+async function openNewTicket() {
+  document.getElementById('new-ticket-modal').classList.add('show');
+  document.getElementById('new-ticket-subject').value = '';
+  document.getElementById('new-ticket-description').value = '';
+
+  const projectSelect = document.getElementById('new-ticket-project');
+  projectSelect.innerHTML = '<option>Loading…</option>';
+  const projectsResult = await window.reddieAPI.fetchProjects();
+  const projects = (projectsResult && projectsResult.items) || [];
+  if (!projects.length) {
+    projectSelect.innerHTML = '<option>No projects available</option>';
+    document.getElementById('new-ticket-tracker').innerHTML = '';
+    return;
+  }
+  projectSelect.innerHTML = projects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  await loadNewTicketTrackers();
+}
+
+async function loadNewTicketTrackers() {
+  const projectId = document.getElementById('new-ticket-project').value;
+  const trackerSelect = document.getElementById('new-ticket-tracker');
+  trackerSelect.innerHTML = '<option>Loading…</option>';
+  if (!projectId) return;
+
+  const result = await window.reddieAPI.fetchProjectTrackers(projectId);
+  const trackers = (result && result.items) || [];
+  trackerSelect.innerHTML = trackers.length
+    ? trackers.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
+    : '<option>No trackers enabled on this project</option>';
+}
+
+function closeNewTicket() {
+  document.getElementById('new-ticket-modal').classList.remove('show');
+}
+
+async function submitNewTicket() {
+  const projectId = document.getElementById('new-ticket-project').value;
+  const trackerId = document.getElementById('new-ticket-tracker').value;
+  const subject = document.getElementById('new-ticket-subject').value.trim();
+  const description = document.getElementById('new-ticket-description').value.trim();
+  const btn = document.getElementById('new-ticket-submit-btn');
+
+  if (!projectId || !trackerId) {
+    showToast('Pick a project and tracker', 'error');
+    return;
+  }
+  if (!subject) {
+    showToast('Enter a subject', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  try {
+    const result = await window.reddieAPI.createIssue({ projectId, trackerId, subject, description });
+    if (result && result.error) {
+      throw new Error(result.error);
+    }
+    showToast(`#${result.issue.id} created`, 'success');
+    closeNewTicket();
+    await loadFromAPI();
+  } catch (err) {
+    showToast(`Couldn't create ticket: ${err.message || err}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create';
+  }
+}
+
 async function saveColumnMappingOverrides() {
   const btn = document.getElementById('column-mapping-save-btn');
   const rows = document.querySelectorAll('#column-mapping-body .mapping-row');
@@ -681,6 +750,10 @@ window.closeIssueDetail = closeIssueDetail;
 window.postComment = postComment;
 window.submitTimelog = submitTimelog;
 window.changeAssignee = changeAssignee;
+window.openNewTicket = openNewTicket;
+window.closeNewTicket = closeNewTicket;
+window.loadNewTicketTrackers = loadNewTicketTrackers;
+window.submitNewTicket = submitNewTicket;
 window.checkForUpdates = checkForUpdates;
 
 document.addEventListener('DOMContentLoaded', async () => {
