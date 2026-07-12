@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "dotenv": "^17.4.2",
+    "electron-updater": "^6.8.9",
     "sortablejs": "^1.15.7"
   },
   "build": {
@@ -37,12 +38,22 @@
     },
     "win": {
       "icon": "build/icon.ico",
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "linux": {
       "icon": "build/icon.png",
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Development"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "buluma",
+      "repo": "reddie"
     }
   }
 }

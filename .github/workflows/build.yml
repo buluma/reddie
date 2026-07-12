@@ -12,6 +12,11 @@ on:
 
 jobs:
   build:
+    # Needed for the tag-push path to publish a GitHub Release with
+    # GITHUB_TOKEN - manual dispatch runs never publish so this is unused
+    # there, but electron-builder needs it whenever it does.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -38,8 +43,13 @@ jobs:
 
       - run: npm test
 
-      - run: npm run build
+      - name: Build
+        # Tag pushes publish a real GitHub Release (electron-updater checks
+        # this - no release means no update feed). Manual dispatch runs
+        # stay --publish=never so a test run never mints a release.
+        run: npx electron-builder --publish ${{ github.event_name == 'push' && 'always' || 'never' }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # electron-builder auto-detects the target from the runner OS -
           # no --mac/--win/--linux flag needed. Unsigned/ad-hoc on every
           # platform: no Apple Developer cert or Windows code-signing

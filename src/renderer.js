@@ -48,6 +48,35 @@ function showToast(message, type = 'info') {
   }, 4000);
 }
 
+// Auto-updater status pushed from main.js (electron-updater events aren't
+// a response to any renderer request, so this is a listener, not invoke).
+function initUpdateListener() {
+  window.reddieAPI.onUpdateStatus((data) => {
+    switch (data.status) {
+      case 'available':
+        showToast(`Update v${data.version} found - downloading…`, 'info');
+        break;
+      case 'downloaded':
+        showToast(`Update v${data.version} ready - installs on next restart`, 'success');
+        break;
+      case 'error':
+        showToast(`Update check failed: ${data.message}`, 'error');
+        break;
+      // 'checking', 'not-available' and per-tick 'downloading' progress are
+      // routine background noise - not worth a toast.
+    }
+  });
+}
+
+async function checkForUpdates() {
+  const result = await window.reddieAPI.checkForUpdates();
+  if (result && result.error) {
+    showToast(result.error, 'error');
+  } else {
+    showToast('Checking for updates…', 'info');
+  }
+}
+
 // Connection status
 function setConnectionStatus(state, text) {
   const el = document.getElementById('connection-status');
@@ -397,6 +426,12 @@ function initSortable() {
               if (result && result.error) {
                 throw new Error(result.error);
               }
+              // Our own drag, not a remote move - update the tracker so the
+              // next auto-refresh diff doesn't fire a false notification.
+              const issueId = itemEl.dataset.issueId;
+              const prevSubject = (knownIssueColumns[issueId] && knownIssueColumns[issueId].subject)
+                || itemEl.querySelector('.task-content').innerText;
+              knownIssueColumns[issueId] = { column: newColumn, subject: prevSubject };
               saveState();
             })
             .catch((err) => {
@@ -510,7 +545,26 @@ function loadState() {
   if (state) renderState(state);
 }
 
-async function loadFromAPI() {
+// issueId -> { column, subject } as of the last fetch. Lets the
+// auto-refresh tick tell "someone else moved this in Redmine" apart from
+// a first load (nothing to compare against yet, map starts empty) or a
+// config/mapping refresh (which also calls loadFromAPI but shouldn't
+// treat a reclassification as a remote move - notifyChanges stays off).
+let knownIssueColumns = {};
+
+function notifyRemoteChanges(nextIssueColumns) {
+  if (typeof Notification === 'undefined') return;
+  Object.entries(nextIssueColumns).forEach(([issueId, info]) => {
+    const prev = knownIssueColumns[issueId];
+    if (prev && prev.column !== info.column) {
+      new Notification(`#${issueId} moved`, {
+        body: `${info.subject}\n${COLUMN_LABELS[prev.column]} → ${COLUMN_LABELS[info.column]}`,
+      });
+    }
+  });
+}
+
+async function loadFromAPI({ notifyChanges = false } = {}) {
   try {
     const response = await window.reddieAPI.fetchIssues();
     if (response.error) {
@@ -522,6 +576,7 @@ async function loadFromAPI() {
     const issues = response.items || [];
     const apiState = {};
     columns.forEach(id => { apiState[id] = []; });
+    const nextIssueColumns = {};
 
     issues.forEach(issue => {
       const column = getColumnFromStatus(issue.status);
@@ -531,7 +586,11 @@ async function loadFromAPI() {
         content: content,
         issueId: issue.id
       });
+      nextIssueColumns[issue.id] = { column, subject: content };
     });
+
+    if (notifyChanges) notifyRemoteChanges(nextIssueColumns);
+    knownIssueColumns = nextIssueColumns;
 
     // Merge with existing state instead of overwriting it: keep any
     // manually-added local card (no issueId) exactly where it was, and
@@ -566,9 +625,11 @@ window.openIssueDetail = openIssueDetail;
 window.closeIssueDetail = closeIssueDetail;
 window.postComment = postComment;
 window.submitTimelog = submitTimelog;
+window.checkForUpdates = checkForUpdates;
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
+  initUpdateListener();
   document.body.classList.add(`platform-${window.reddieAPI.platform}`);
 
   // main.js already resolved config precedence at startup (.env, else its
@@ -594,6 +655,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(() => {
     if (isDragging) return;
     if (document.getElementById('issue-detail-modal').classList.contains('show')) return;
-    loadFromAPI();
+    loadFromAPI({ notifyChanges: true });
   }, AUTO_REFRESH_MS);
 });

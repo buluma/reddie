@@ -14,4 +14,9 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   addComment: (issueId, comment) => ipcRenderer.invoke('add-comment', { issueId, comment }),
   fetchActivities: () => ipcRenderer.invoke('fetch-activities'),
   addTimelog: (issueId, entry) => ipcRenderer.invoke('add-timelog', { issueId, ...entry }),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateStatus: (callback) => {
+    ipcRenderer.on('update-status', (event, data) => callback(data));
+  },
 });

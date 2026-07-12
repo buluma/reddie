@@ -3,6 +3,26 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { RedmineClient, buildColumnMapping } = require('./redmine-client');
 const { loadPersistedConfig, persistConfig } = require('./config-store');
+const { autoUpdater } = require('electron-updater');
+
+// Downloads silently in the background; the user is only interrupted once
+// there's actually something to install, and it's applied on the next
+// natural quit rather than forcing a restart mid-session.
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+function sendUpdateStatus(status, extra = {}) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status, ...extra });
+  }
+}
+
+autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'));
+autoUpdater.on('update-available', (info) => sendUpdateStatus('available', { version: info.version }));
+autoUpdater.on('update-not-available', () => sendUpdateStatus('not-available'));
+autoUpdater.on('error', (err) => sendUpdateStatus('error', { message: err.message }));
+autoUpdater.on('download-progress', (progress) => sendUpdateStatus('downloading', { percent: Math.round(progress.percent) }));
+autoUpdater.on('update-downloaded', (info) => sendUpdateStatus('downloaded', { version: info.version }));
 
 // Talks directly to Redmine's own REST API - no Converge or any other
 // intermediary backend required. Anyone can run this against their own
@@ -118,6 +138,18 @@ app.whenReady().then(async () => {
     await connect();
   }
 
+  // Only makes sense against a packaged build with real release metadata -
+  // in dev mode (npm start) there's no update feed to check and
+  // electron-updater just errors, so skip it entirely there. Delayed so
+  // it never competes with the initial board load for network/attention.
+  if (app.isPackaged) {
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('Update check failed:', err.message);
+      });
+    }, 5000);
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -200,4 +232,20 @@ ipcMain.handle('add-timelog', async (event, { issueId, hours, activityId, commen
   } catch (err) {
     return { error: err.message };
   }
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  if (!app.isPackaged) {
+    return { error: 'Updates only work in a packaged build, not npm start' };
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('install-update', async () => {
+  autoUpdater.quitAndInstall();
 });
