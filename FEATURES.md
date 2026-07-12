@@ -28,6 +28,7 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 
 - "New Ticket…" (header) — pick a project, then a tracker (fetched per-project, since trackers are enabled per-project not globally), subject, description
 - New tickets default-assign to you so they land on the board immediately
+- **Custom fields** — rendered per project+tracker as plain text inputs, sniffed from a sample existing issue of that pairing (`/custom_fields.json`, the endpoint with real field format/options/required-ness, is admin-only and 403s for a regular API key — no dropdowns/checkboxes possible, just text; Redmine's own validation error catches a bad value on submit)
 
 ## Configuration
 
@@ -44,5 +45,5 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 ## Not yet supported
 
 - **Sub-tasks** (parent/child issue relationships) — no plan drafted yet
-- **Custom fields** — arbitrary per-tracker fields (some Redmine projects require these to create an issue at all; reddie's "New Ticket" flow will surface Redmine's validation error if a project needs one it doesn't ask for)
+- **Custom fields, read-only in the detail view** — creation supports them (see above), but an existing ticket's custom field values aren't shown anywhere in the detail view yet
 - **macOS notarization / Windows code signing** — needs paid developer accounts, not attempted; builds are ad-hoc signed (macOS Gatekeeper warning) / unsigned (Windows SmartScreen warning)
