@@ -226,20 +226,25 @@ header {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--glass-border);
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 header h1 {
@@ -780,4 +785,30 @@ header h1 {
 .mapping-select:focus {
   outline: none;
   border-color: var(--primary-color);
+}
+
+/* Responsive: header wraps on its own (see .header/.header-right), but
+   columns are fixed-width and only ever scroll horizontally - shrinking
+   them first means more of the board is visible before scrolling is the
+   only option. Breakpoints match the window's 720px minWidth (main.js)
+   and the default 1200px starting width. */
+@media (max-width: 900px) {
+  :root {
+    --column-width: 240px;
+  }
+
+  header {
+    padding: 16px 20px;
+  }
+
+  .dashboard {
+    padding: 16px;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --column-width: 200px;
+  }
 }

@@ -113,6 +113,11 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    // Below this, the header's controls (search, New Ticket, mode toggle,
+    // theme/settings) have nowhere left to wrap to and start overlapping
+    // instead - this is the point past which CSS alone can't save it.
+    minWidth: 720,
+    minHeight: 480,
     // hiddenInset (traffic lights, no title bar) is a macOS convention -
     // Windows/Linux keep the normal OS-drawn frame instead of trying to
     // fake it, since faking it well needs real custom minimize/maximize/
