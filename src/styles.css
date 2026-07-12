@@ -139,6 +139,21 @@ body {
   cursor: grabbing;
 }
 
+.task-card.local-card {
+  border-left: 3px solid #f0a020;
+}
+
+.local-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #f0a020;
+  border: 1px solid #f0a020;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: auto;
+}
+
 .task-card.sortable-ghost {
   opacity: 0.4;
   background: #ccc;
@@ -232,6 +247,23 @@ header h1 {
 
 .connection-status.error .status-dot {
   background: #ff4444;
+}
+
+.board-search {
+  padding: 6px 12px;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-size: 13px;
+  width: 160px;
+}
+
+.board-search:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  width: 220px;
+  transition: width 0.2s;
 }
 
 .theme-toggle {

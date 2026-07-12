@@ -4,12 +4,14 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "test": "vitest run"
   },
   "type": "commonjs",
   "devDependencies": {
     "electron": "^41.2.2",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

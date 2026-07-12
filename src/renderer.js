@@ -1,4 +1,5 @@
 const columns = ['backlog', 'todo', 'in-progress', 'done'];
+const AUTO_REFRESH_MS = 60000;
 
 // Populated from the connected Redmine instance's real issue_statuses via
 // getColumnMapping() - no hardcoded status ids, this varies per instance.
@@ -299,6 +300,8 @@ function getStatusId(column) {
   return columnMapping.columnToStatusId[column] || columnMapping.columnToStatusId.backlog;
 }
 
+let isDragging = false;
+
 function initSortable() {
   columns.forEach(id => {
     const el = document.getElementById(`${id}-list`);
@@ -306,7 +309,9 @@ function initSortable() {
       group: 'kanban',
       animation: 150,
       ghostClass: 'sortable-ghost',
+      onStart: () => { isDragging = true; },
       onEnd: (evt) => {
+        isDragging = false;
         const itemEl = evt.item;
         const newColumn = evt.to.id.replace('-list', '');
         const oldColumn = evt.from.id.replace('-list', '');
@@ -343,18 +348,27 @@ function initSortable() {
 
 function createTaskCard(id, content, issueId = null) {
   const card = document.createElement('div');
-  card.className = 'task-card';
+  card.className = issueId ? 'task-card' : 'task-card local-card';
   card.id = `task-${id}`;
   if (issueId) card.dataset.issueId = issueId;
   card.innerHTML = `
     <div class="task-content" contenteditable="true" onblur="saveState()">${content}</div>
     <div class="task-actions">
+      ${!issueId ? `<span class="local-badge" title="Personal card, not synced to Redmine">Local</span>` : ''}
       ${issueId ? `<span class="issue-id" onclick="openIssueDetail('${issueId}')" title="View details">#${issueId}</span>` : ''}
       ${issueId ? `<button class="details-btn" onclick="openIssueDetail('${issueId}')">Details</button>` : ''}
       <button class="delete-task-btn" onclick="deleteTask('${id}')">Delete</button>
     </div>
   `;
   return card;
+}
+
+function filterBoard(query) {
+  const term = query.trim().toLowerCase();
+  document.querySelectorAll('.task-card').forEach(card => {
+    const matches = !term || card.textContent.toLowerCase().includes(term);
+    card.style.display = matches ? '' : 'none';
+  });
 }
 
 function addTask(columnId) {
@@ -414,6 +428,12 @@ function renderState(state) {
       list.appendChild(card);
     });
   });
+  // Re-apply any active search - a fresh render rebuilds every card node,
+  // losing the previous filter's display:none state.
+  const searchInput = document.getElementById('board-search');
+  if (searchInput && searchInput.value) {
+    filterBoard(searchInput.value);
+  }
 }
 
 function loadState() {
@@ -463,6 +483,7 @@ async function loadFromAPI() {
 
 // Global scope
 window.addTask = addTask;
+window.filterBoard = filterBoard;
 window.deleteTask = deleteTask;
 window.saveState = saveState;
 window.openSettings = openSettings;
@@ -493,9 +514,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   loadState();
+  // First launch, nothing cached yet - show a loading placeholder rather
+  // than blank columns while the initial fetch is in flight.
+  if (!getState()) {
+    columns.forEach(id => {
+      document.getElementById(`${id}-list`).innerHTML = '<div class="detail-loading">Loading…</div>';
+    });
+  }
   initSortable();
   await refreshConnectionStatus();
   await loadColumnMapping();
   await loadActivities();
   await loadFromAPI();
+
+  // Auto-refresh: skip a tick rather than yank the board out from under an
+  // in-progress drag or a card the user is actively viewing.
+  setInterval(() => {
+    if (isDragging) return;
+    if (document.getElementById('issue-detail-modal').classList.contains('show')) return;
+    loadFromAPI();
+  }, AUTO_REFRESH_MS);
 });
