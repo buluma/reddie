@@ -138,10 +138,14 @@ function renderIssueDetail(issue, timeEntries) {
   `;
 }
 
+let currentDetailIssueId = null;
+
 async function openIssueDetail(issueId) {
+  currentDetailIssueId = issueId;
   document.getElementById('issue-detail-modal').classList.add('show');
   document.getElementById('detail-subject').textContent = 'Loading…';
   document.getElementById('detail-body').innerHTML = '<div class="detail-loading">Loading…</div>';
+  document.getElementById('comment-input').value = '';
 
   const result = await window.reddieAPI.fetchIssueDetail(issueId);
   if (!result || result.error || !result.issue) {
@@ -154,6 +158,37 @@ async function openIssueDetail(issueId) {
 
 function closeIssueDetail() {
   document.getElementById('issue-detail-modal').classList.remove('show');
+  currentDetailIssueId = null;
+}
+
+async function postComment() {
+  const input = document.getElementById('comment-input');
+  const btn = document.getElementById('comment-submit-btn');
+  const comment = input.value.trim();
+  if (!comment || !currentDetailIssueId) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Posting…';
+  try {
+    const result = await window.reddieAPI.addComment(currentDetailIssueId, comment);
+    if (result && result.error) {
+      showToast(`Couldn't post comment: ${result.error}`, 'error');
+      return;
+    }
+    input.value = '';
+    showToast('Comment posted', 'success');
+    // Re-fetch so the new comment shows up in the activity list
+    const issueId = currentDetailIssueId;
+    const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
+    if (refreshed && !refreshed.error && refreshed.issue) {
+      renderIssueDetail(refreshed.issue, refreshed.timeEntries);
+    }
+  } catch (err) {
+    showToast(`Couldn't post comment: ${err.message || err}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Post comment';
+  }
 }
 
 // Settings
@@ -374,6 +409,7 @@ window.saveSettings = saveSettings;
 window.toggleTheme = toggleTheme;
 window.openIssueDetail = openIssueDetail;
 window.closeIssueDetail = closeIssueDetail;
+window.postComment = postComment;
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();

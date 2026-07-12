@@ -513,3 +513,44 @@ header h1 {
 .issue-id {
   cursor: pointer;
 }
+
+.detail-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--modal-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.comment-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.comment-submit-btn {
+  align-self: flex-end;
+  padding: 8px 16px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.comment-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
