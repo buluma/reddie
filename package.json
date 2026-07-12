@@ -2,6 +2,10 @@
   "name": "reddie",
   "version": "1.1.0",
   "main": "src/main.js",
+  "author": {
+    "name": "Michael Buluma",
+    "email": "bulumaknight@gmail.com"
+  },
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --publish=never",
