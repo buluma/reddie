@@ -1,0 +1,44 @@
+# Features
+
+Living list of what reddie currently supports, kept in sync with SHA-18 in Linear. Update this alongside any feature-level change.
+
+## Board
+
+- Drag-and-drop Kanban (Backlog / To Do / In Progress / Done), auto-mapped from the connected instance's real `issue_statuses` (name/`is_closed` heuristic) — works against any instance's custom workflow, not just one specific setup
+- Per-status column overrides (Settings → Column Mapping…) when the automatic classification gets one wrong for your instance
+- Personal scratch cards (no ticket number) — local-only, `localStorage`, never synced to Redmine, visually distinguished with a "Local" badge
+- Board search/filter, dark/light theme, 60s auto-refresh (paused during an active drag or while the detail view is open)
+- Desktop notification when a ticket's column changes remotely (someone else moved it) or it's reassigned away from you entirely (drops out of `assigned_to_id=me`) — both are diffed against the previous poll, not fired on first load or your own actions
+
+## Ticket detail view
+
+- Full ticket: description, project, author, due date, GitHub-style activity/comment history, time entries
+- **Assignee** — dropdown of the project's members, PUTs `assigned_to_id`
+- **Priority** — dropdown of the instance's `issue_priorities`, PUTs `priority_id`
+- **Status** — via drag on the board (not the detail view)
+- **Comments** — post directly from the detail view
+- **Time tracking** — log hours against any of the instance's active time-entry activities
+- **Attachments** — view existing ones, upload new files (Redmine's two-step upload-then-attach flow)
+
+## Creating tickets
+
+- "New Ticket…" (header) — pick a project, then a tracker (fetched per-project, since trackers are enabled per-project not globally), subject, description
+- New tickets default-assign to you so they land on the board immediately
+
+## Configuration
+
+- Redmine URL + API key via `.env` or Settings — no other backend required, ever
+- API key encrypted at rest via Electron's `safeStorage` (Keychain/DPAPI/libsecret), not plaintext
+- Per-status column mapping overrides (see Board, above)
+
+## Distribution & updates
+
+- Cross-platform builds: macOS (`.dmg`), Windows (`.exe`/NSIS), Linux (`.AppImage`/`.deb`)
+- GitHub Actions CI: 3-platform matrix build on tag push, auto-publishes a real GitHub Release once every platform succeeds
+- In-app auto-updater (`electron-updater`) — checks on launch (packaged builds only), downloads in the background, installs on next quit; manual "Check for Updates…" in Settings
+
+## Not yet supported
+
+- **Sub-tasks** (parent/child issue relationships) — no plan drafted yet
+- **Custom fields** — arbitrary per-tracker fields (some Redmine projects require these to create an issue at all; reddie's "New Ticket" flow will surface Redmine's validation error if a project needs one it doesn't ask for)
+- **macOS notarization / Windows code signing** — needs paid developer accounts, not attempted; builds are ad-hoc signed (macOS Gatekeeper warning) / unsigned (Windows SmartScreen warning)
