@@ -80,13 +80,21 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // electron-builder bakes the real icon into a packaged build via
-  // build/icon.icns - this is only needed so `npm start` (raw Electron
-  // binary) shows it too, instead of the generic Electron icon.
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.setIcon(iconPath);
-  }
   createWindow();
+
+  // A packaged build already gets its icon for free from Info.plist's
+  // CFBundleIconFile (build/icon.icns) - this is only needed so `npm
+  // start` (raw Electron binary, no Info.plist) shows it too. build/
+  // isn't bundled into the packaged app's asar, so iconPath wouldn't
+  // resolve there anyway; guarded to dev builds and never allowed to
+  // block window creation if it fails for any other reason.
+  if (!app.isPackaged && process.platform === 'darwin' && app.dock) {
+    try {
+      app.dock.setIcon(iconPath);
+    } catch (err) {
+      console.error('Failed to set dock icon:', err.message);
+    }
+  }
 
   if (config.redmineApiKey) {
     await connect();
