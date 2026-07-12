@@ -79,8 +79,12 @@ body.platform-darwin .app-container {
 }
 
 .column {
-  width: var(--column-width);
+  /* Grow to fill leftover width on a wide window instead of leaving it
+     dead past the 4th column; shrink back down to --column-width (not
+     below) on a narrow one, where .dashboard's overflow-x takes over. */
+  flex: 1 1 var(--column-width);
   min-width: var(--column-width);
+  max-width: 420px;
   background: var(--glass-bg);
   backdrop-filter: blur(5px);
   border-radius: 16px;
