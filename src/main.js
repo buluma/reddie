@@ -67,7 +67,11 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    titleBarStyle: 'hiddenInset',
+    // hiddenInset (traffic lights, no title bar) is a macOS convention -
+    // Windows/Linux keep the normal OS-drawn frame instead of trying to
+    // fake it, since faking it well needs real custom minimize/maximize/
+    // close controls this app doesn't have.
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
     icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

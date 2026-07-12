@@ -25,6 +25,15 @@
     },
     "mac": {
       "icon": "build/icon.icns"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": ["nsis"]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": ["AppImage", "deb"],
+      "category": "Development"
     }
   }
 }

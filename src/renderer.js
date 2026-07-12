@@ -497,6 +497,7 @@ window.submitTimelog = submitTimelog;
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
+  document.body.classList.add(`platform-${window.reddieAPI.platform}`);
 
   // main.js seeds config from .env at startup. Only fall back to the
   // localStorage cache (set by a previous Settings save) if that env

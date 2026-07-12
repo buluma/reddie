@@ -45,7 +45,11 @@ body {
   height: 100vh;
 }
 
-.drag-handle-bar {
+/* Only macOS uses titleBarStyle: hiddenInset (traffic lights, no title
+   bar) - this manual drag region + top padding compensates for that.
+   Windows/Linux keep the normal OS-drawn frame, which already handles
+   dragging on its own. */
+body.platform-darwin .drag-handle-bar {
   height: 38px;
   width: 100%;
   -webkit-app-region: drag;
@@ -59,7 +63,10 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  padding-top: 40px; /* Leave space for drag handle */
+}
+
+body.platform-darwin .app-container {
+  padding-top: 40px; /* Leave space for the drag handle above */
 }
 
 .dashboard {
