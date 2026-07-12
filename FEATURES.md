@@ -23,6 +23,8 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 - **Comments** — post directly from the detail view
 - **Time tracking** — log hours against any of the instance's active time-entry activities
 - **Attachments** — view existing ones, upload new files (Redmine's two-step upload-then-attach flow)
+- **Sub-tasks** — parent (if any) and children (if any) shown as clickable links that jump straight to that ticket's own detail view; read-only, no assigning/creating a sub-task relationship from reddie
+- **Custom fields** — non-empty ones shown read-only (most fields are blank on most tickets)
 
 ## Creating tickets
 
@@ -44,6 +46,5 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 
 ## Not yet supported
 
-- **Sub-tasks** (parent/child issue relationships) — no plan drafted yet
-- **Custom fields, read-only in the detail view** — creation supports them (see above), but an existing ticket's custom field values aren't shown anywhere in the detail view yet
+- **Creating/assigning sub-task relationships** — reddie can display parent/children (see Ticket detail view, above) but can't set a parent when creating a ticket or turn an existing one into a child of another
 - **macOS notarization / Windows code signing** — needs paid developer accounts, not attempted; builds are ad-hoc signed (macOS Gatekeeper warning) / unsigned (Windows SmartScreen warning)
