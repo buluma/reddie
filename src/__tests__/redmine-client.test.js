@@ -71,4 +71,33 @@ describe('buildColumnMapping', () => {
     expect(mapping.statusIdToColumn).toEqual({});
     expect(mapping.columnToStatusId).toEqual({});
   });
+
+  it('lets a user override the automatic classification per status', () => {
+    // "Hold" would auto-classify to 'todo' - override it to 'in-progress'.
+    const { statusIdToColumn, columnToStatusId } = buildColumnMapping(REAL_STATUSES, {
+      7: 'in-progress',
+    });
+    expect(statusIdToColumn[7]).toBe('in-progress');
+    // Reverse mapping should also respect the override: status 2 (In
+    // Progress) still wins as the lowest id for that column since 2 < 7.
+    expect(columnToStatusId['in-progress']).toBe(2);
+  });
+
+  it('ignores an override with an invalid column name', () => {
+    const { statusIdToColumn } = buildColumnMapping(REAL_STATUSES, {
+      7: 'not-a-real-column',
+    });
+    // Falls back to the automatic classification instead of accepting junk.
+    expect(statusIdToColumn[7]).toBe('todo');
+  });
+
+  it('an override can become the reverse-mapping winner if it has the lowest id for that column', () => {
+    // Status 1 (New) auto-classifies to 'backlog'. Override it to 'done' -
+    // since it's now the lowest id classified as 'done', it should win the
+    // reverse mapping over status 3/5 (Resolved/Closed).
+    const { columnToStatusId } = buildColumnMapping(REAL_STATUSES, {
+      1: 'done',
+    });
+    expect(columnToStatusId.done).toBe(1);
+  });
 });

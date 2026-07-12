@@ -154,12 +154,20 @@ function classifyStatus(status) {
   return 'backlog';
 }
 
-function buildColumnMapping(statuses) {
+const VALID_COLUMNS = ['backlog', 'todo', 'in-progress', 'done'];
+
+// `overrides` is a { [statusId]: columnName } map from a user's manual
+// remapping (Settings > Column Mapping) - layered on top of the automatic
+// name/is_closed classification. Not every Redmine instance's status names
+// match the heuristic (see classifyStatus above), so this is the escape
+// hatch rather than requiring instance-specific code changes.
+function buildColumnMapping(statuses, overrides = {}) {
   const sorted = [...statuses].sort((a, b) => a.id - b.id);
   const statusIdToColumn = {};
   const columnToStatusId = {};
   for (const status of sorted) {
-    const column = classifyStatus(status);
+    const override = overrides[status.id];
+    const column = VALID_COLUMNS.includes(override) ? override : classifyStatus(status);
     statusIdToColumn[status.id] = column;
     if (!(column in columnToStatusId)) {
       columnToStatusId[column] = status.id;

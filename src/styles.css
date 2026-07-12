@@ -367,6 +367,9 @@ header h1 {
 
 .form-actions {
   margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .form-actions button {
@@ -378,6 +381,12 @@ header h1 {
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
+}
+
+.secondary-btn {
+  background: transparent !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--input-border) !important;
 }
 
 .issue-id {
@@ -640,4 +649,38 @@ header h1 {
 .timelog-submit-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* Column mapping */
+.mapping-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--modal-border);
+}
+
+.mapping-row:first-child {
+  border-top: none;
+}
+
+.mapping-status-name {
+  font-size: 13px;
+}
+
+.mapping-select {
+  padding: 6px 8px;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 120px;
+}
+
+.mapping-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
 }

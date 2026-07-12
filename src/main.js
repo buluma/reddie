@@ -13,11 +13,13 @@ const DEFAULT_REDMINE_API_KEY = process.env.REDMINE_API_KEY || '';
 let config = {
   redmineBaseUrl: DEFAULT_REDMINE_BASE_URL,
   redmineApiKey: DEFAULT_REDMINE_API_KEY,
+  columnOverrides: {},
 };
 
 let client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
 let columnMapping = { statusIdToColumn: {}, columnToStatusId: {} };
 let activities = [];
+let lastStatuses = [];
 
 function rebuildClient() {
   client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
@@ -33,7 +35,8 @@ async function connect() {
       client.listStatuses(),
       client.listActivities(),
     ]);
-    columnMapping = buildColumnMapping(statuses);
+    lastStatuses = statuses;
+    columnMapping = buildColumnMapping(statuses, config.columnOverrides);
     activities = activityList;
     return { ok: true, user };
   } catch (err) {
@@ -147,6 +150,17 @@ ipcMain.handle('check-connection', async () => {
 
 ipcMain.handle('get-column-mapping', async () => {
   return columnMapping;
+});
+
+ipcMain.handle('fetch-statuses', async () => {
+  return { items: lastStatuses };
+});
+
+ipcMain.handle('save-column-overrides', async (event, overrides) => {
+  config.columnOverrides = overrides;
+  persistConfig(config);
+  columnMapping = buildColumnMapping(lastStatuses, config.columnOverrides);
+  return { ok: true, columnMapping };
 });
 
 ipcMain.handle('fetch-issues', async () => {

@@ -43,11 +43,15 @@ function loadPersistedConfig() {
   return {
     redmineBaseUrl: raw.redmineBaseUrl || '',
     redmineApiKey,
+    // { [statusId]: columnName } - a user's manual status->column remap
+    // from Settings > Column Mapping, layered over the automatic
+    // classification in redmine-client.js. Not sensitive, stored plain.
+    columnOverrides: raw.columnOverrides || {},
   };
 }
 
-function persistConfig({ redmineBaseUrl, redmineApiKey }) {
-  const out = { redmineBaseUrl };
+function persistConfig({ redmineBaseUrl, redmineApiKey, columnOverrides }) {
+  const out = { redmineBaseUrl, columnOverrides: columnOverrides || {} };
   if (redmineApiKey) {
     if (safeStorage.isEncryptionAvailable()) {
       out.redmineApiKeyEncrypted = safeStorage.encryptString(redmineApiKey).toString('base64');

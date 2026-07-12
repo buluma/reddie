@@ -266,6 +266,75 @@ function closeSettings() {
   document.getElementById('settings-modal').classList.remove('show');
 }
 
+// Column mapping
+const COLUMN_LABELS = { backlog: 'Backlog', todo: 'To Do', 'in-progress': 'In Progress', done: 'Done' };
+
+async function openColumnMapping() {
+  document.getElementById('column-mapping-modal').classList.add('show');
+  document.getElementById('column-mapping-body').innerHTML = '<div class="detail-loading">Loading…</div>';
+
+  const [statusesResult, mapping] = await Promise.all([
+    window.reddieAPI.fetchStatuses(),
+    window.reddieAPI.getColumnMapping(),
+  ]);
+  const statuses = (statusesResult && statusesResult.items) || [];
+
+  if (!statuses.length) {
+    document.getElementById('column-mapping-body').innerHTML =
+      '<div class="detail-empty">Connect to a Redmine instance first to load its statuses.</div>';
+    return;
+  }
+
+  const rowsHtml = statuses
+    .slice()
+    .sort((a, b) => a.id - b.id)
+    .map(status => {
+      const current = (mapping && mapping.statusIdToColumn[status.id]) || 'backlog';
+      const options = columns
+        .map(col => `<option value="${col}" ${col === current ? 'selected' : ''}>${COLUMN_LABELS[col]}</option>`)
+        .join('');
+      return `
+        <div class="mapping-row" data-status-id="${status.id}">
+          <span class="mapping-status-name">${escapeHtml(status.name)}</span>
+          <select class="mapping-select">${options}</select>
+        </div>
+      `;
+    })
+    .join('');
+
+  document.getElementById('column-mapping-body').innerHTML = `<div class="mapping-list">${rowsHtml}</div>`;
+}
+
+function closeColumnMapping() {
+  document.getElementById('column-mapping-modal').classList.remove('show');
+}
+
+async function saveColumnMappingOverrides() {
+  const btn = document.getElementById('column-mapping-save-btn');
+  const rows = document.querySelectorAll('#column-mapping-body .mapping-row');
+  const overrides = {};
+  rows.forEach(row => {
+    const statusId = row.dataset.statusId;
+    const select = row.querySelector('.mapping-select');
+    overrides[statusId] = select.value;
+  });
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    await window.reddieAPI.saveColumnOverrides(overrides);
+    await loadColumnMapping();
+    showToast('Column mapping saved', 'success');
+    closeColumnMapping();
+    await loadFromAPI();
+  } catch (err) {
+    showToast(`Couldn't save mapping: ${err.message || err}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save mapping';
+  }
+}
+
 async function saveSettings() {
   const newConfig = {
     redmineBaseUrl: document.getElementById('redmine-base').value,
@@ -488,6 +557,9 @@ window.deleteTask = deleteTask;
 window.saveState = saveState;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
+window.openColumnMapping = openColumnMapping;
+window.closeColumnMapping = closeColumnMapping;
+window.saveColumnMappingOverrides = saveColumnMappingOverrides;
 window.saveSettings = saveSettings;
 window.toggleTheme = toggleTheme;
 window.openIssueDetail = openIssueDetail;

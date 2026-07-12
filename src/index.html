@@ -73,7 +73,24 @@
         </div>
         <div class="form-actions">
           <button onclick="saveSettings()">Save & Reconnect</button>
+          <button type="button" class="secondary-btn" onclick="openColumnMapping()">Column Mapping…</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Column Mapping Modal -->
+  <div id="column-mapping-modal" class="modal">
+    <div class="modal-content detail-modal-content">
+      <div class="modal-header">
+        <h2>Column Mapping</h2>
+        <button class="close-btn" onclick="closeColumnMapping()">×</button>
+      </div>
+      <div class="modal-body detail-modal-body" id="column-mapping-body">
+        <div class="detail-loading">Loading…</div>
+      </div>
+      <div class="detail-modal-footer">
+        <button id="column-mapping-save-btn" class="comment-submit-btn" style="align-self: stretch;" onclick="saveColumnMappingOverrides()">Save mapping</button>
       </div>
     </div>
   </div>
