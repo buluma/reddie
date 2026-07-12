@@ -546,10 +546,11 @@ function loadState() {
 }
 
 // issueId -> { column, subject } as of the last fetch. Lets the
-// auto-refresh tick tell "someone else moved this in Redmine" apart from
-// a first load (nothing to compare against yet, map starts empty) or a
-// config/mapping refresh (which also calls loadFromAPI but shouldn't
-// treat a reclassification as a remote move - notifyChanges stays off).
+// auto-refresh tick tell "someone else moved this in Redmine" (or
+// reassigned it away entirely) apart from a first load (nothing to
+// compare against yet, map starts empty) or a config/mapping refresh
+// (which also calls loadFromAPI but shouldn't treat a reclassification
+// as a remote move - notifyChanges stays off).
 let knownIssueColumns = {};
 
 function notifyRemoteChanges(nextIssueColumns) {
@@ -559,6 +560,17 @@ function notifyRemoteChanges(nextIssueColumns) {
     if (prev && prev.column !== info.column) {
       new Notification(`#${issueId} moved`, {
         body: `${info.subject}\n${COLUMN_LABELS[prev.column]} → ${COLUMN_LABELS[info.column]}`,
+      });
+    }
+  });
+  // listMyIssues() is filtered server-side to the current assignee - a
+  // ticket that drops out of the fetch entirely (not just changed column)
+  // means it was reassigned away (or otherwise left your visible list),
+  // and the board would otherwise just lose the card with no explanation.
+  Object.entries(knownIssueColumns).forEach(([issueId, info]) => {
+    if (!(issueId in nextIssueColumns)) {
+      new Notification(`#${issueId} left your board`, {
+        body: `${info.subject}\nNo longer assigned to you in Redmine`,
       });
     }
   });
