@@ -1,28 +1,12 @@
 const columns = ['backlog', 'todo', 'in-progress', 'done'];
-const statusMap = {
-  'New': 'backlog',
-  'In Progress': 'in-progress',
-  'Resolved': 'done',
-  'Feedback': 'todo',
-  'Closed': 'done',
-  'Hold': 'todo',
-  'Testing': 'in-progress',
-  1: 'backlog',
-  2: 'in-progress',
-  3: 'done',
-  4: 'todo',
-  5: 'done',
-  6: 'todo',
-  10: 'in-progress',
-  11: 'todo',
-  12: 'done',
-  13: 'todo',
-  14: 'todo',
-  15: 'todo',
-  16: 'todo',
-  19: 'todo',
-  26: 'todo'
-};
+
+// Populated from the connected Redmine instance's real issue_statuses via
+// getColumnMapping() - no hardcoded status ids, this varies per instance.
+let columnMapping = { statusIdToColumn: {}, columnToStatusId: {} };
+
+async function loadColumnMapping() {
+  columnMapping = await window.reddieAPI.getColumnMapping();
+}
 
 // Theme
 function applyTheme(theme) {
@@ -95,55 +79,50 @@ function formatDateTime(value) {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
-function renderIssueDetail(issue) {
-  document.getElementById('detail-subject').textContent = issue.subject || `Issue #${issue.redmineIssueId}`;
+function renderIssueDetail(issue, timeEntries) {
+  document.getElementById('detail-subject').textContent = issue.subject || `Issue #${issue.id}`;
 
   const journalsHtml = (issue.journals || [])
     .filter(j => j.notes)
     .map(j => `
       <div class="journal-entry">
         <div class="journal-meta">
-          <strong>${escapeHtml(j.author || 'Unknown')}</strong>
-          <span class="journal-date">${formatDateTime(j.createdOnRemote)}</span>
+          <strong>${escapeHtml((j.user && j.user.name) || 'Unknown')}</strong>
+          <span class="journal-date">${formatDateTime(j.created_on)}</span>
         </div>
         <div class="journal-notes">${escapeHtml(j.notes)}</div>
       </div>
     `).join('') || '<div class="detail-empty">No comments yet.</div>';
 
-  const timeEntriesHtml = (issue.timeEntries || [])
+  const timeEntriesHtml = (timeEntries || [])
     .map(t => `
       <div class="time-entry-row">
-        <span>${t.hours}h — ${escapeHtml(t.activityName || 'Activity')}</span>
-        <span class="journal-date">${formatDate(t.spentOn)}${t.authorName ? ' · ' + escapeHtml(t.authorName) : ''}</span>
+        <span>${t.hours}h — ${escapeHtml((t.activity && t.activity.name) || 'Activity')}</span>
+        <span class="journal-date">${formatDate(t.spent_on)}${t.user && t.user.name ? ' · ' + escapeHtml(t.user.name) : ''}</span>
       </div>
     `).join('') || '<div class="detail-empty">No time logged.</div>';
-  const totalHours = (issue.timeEntries || []).reduce((sum, t) => sum + (t.hours || 0), 0);
+  const totalHours = (timeEntries || []).reduce((sum, t) => sum + (t.hours || 0), 0);
 
   const attachmentsHtml = (issue.attachments || [])
     .map(a => `<div class="attachment-row">📎 ${escapeHtml(a.filename)} <span class="journal-date">(${Math.round((a.filesize || 0) / 1024)} KB)</span></div>`)
     .join('') || '<div class="detail-empty">No attachments.</div>';
 
-  const githubLinksHtml = (issue.githubLinks || [])
-    .map(g => `<div class="attachment-row">🔗 ${escapeHtml(g.repositoryFullName)}${g.githubPrNumber ? ' #' + g.githubPrNumber : g.githubIssueNumber ? ' #' + g.githubIssueNumber : ''}</div>`)
-    .join('');
-
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-badges">
-      <span class="detail-badge">${escapeHtml(issue.statusName || '—')}</span>
-      ${issue.priority ? `<span class="detail-badge">${escapeHtml(issue.priority)}</span>` : ''}
-      ${issue.tracker ? `<span class="detail-badge">${escapeHtml(issue.tracker)}</span>` : ''}
+      <span class="detail-badge">${escapeHtml((issue.status && issue.status.name) || '—')}</span>
+      ${issue.priority ? `<span class="detail-badge">${escapeHtml(issue.priority.name)}</span>` : ''}
+      ${issue.tracker ? `<span class="detail-badge">${escapeHtml(issue.tracker.name)}</span>` : ''}
     </div>
     <div class="detail-meta">
-      <div><strong>Project</strong> ${escapeHtml(issue.projectName || '—')}</div>
-      <div><strong>Assignee</strong> ${escapeHtml(issue.assignedToName || 'Unassigned')}</div>
-      <div><strong>Author</strong> ${escapeHtml(issue.authorName || '—')}</div>
-      <div><strong>Due</strong> ${formatDate(issue.dueDate)}</div>
+      <div><strong>Project</strong> ${escapeHtml((issue.project && issue.project.name) || '—')}</div>
+      <div><strong>Assignee</strong> ${escapeHtml((issue.assigned_to && issue.assigned_to.name) || 'Unassigned')}</div>
+      <div><strong>Author</strong> ${escapeHtml((issue.author && issue.author.name) || '—')}</div>
+      <div><strong>Due</strong> ${formatDate(issue.due_date)}</div>
     </div>
     <div class="detail-section">
       <h3>Description</h3>
       <div class="detail-description">${issue.description ? escapeHtml(issue.description) : '<span class="detail-empty">No description.</span>'}</div>
     </div>
-    ${githubLinksHtml ? `<div class="detail-section"><h3>GitHub</h3>${githubLinksHtml}</div>` : ''}
     <div class="detail-section">
       <h3>Time logged${totalHours ? ` — ${totalHours}h total` : ''}</h3>
       ${timeEntriesHtml}
@@ -170,7 +149,7 @@ async function openIssueDetail(issueId) {
     document.getElementById('detail-body').innerHTML = `<div class="detail-empty">${escapeHtml((result && result.error) || 'Failed to load issue.')}</div>`;
     return;
   }
-  renderIssueDetail(result.issue);
+  renderIssueDetail(result.issue, result.timeEntries);
 }
 
 function closeIssueDetail() {
@@ -181,7 +160,6 @@ function closeIssueDetail() {
 function openSettings() {
   document.getElementById('settings-modal').classList.add('show');
   window.reddieAPI.getConfig().then(config => {
-    document.getElementById('api-base').value = config.apiBase || 'http://100.110.136.4:3001';
     document.getElementById('redmine-base').value = config.redmineBaseUrl || 'https://redmine.nasctech.com';
     document.getElementById('redmine-api-key').value = config.redmineApiKey || '';
   });
@@ -193,11 +171,10 @@ function closeSettings() {
 
 async function saveSettings() {
   const newConfig = {
-    apiBase: document.getElementById('api-base').value,
     redmineBaseUrl: document.getElementById('redmine-base').value,
     redmineApiKey: document.getElementById('redmine-api-key').value
   };
-  
+
   // Save to main process
   const result = await window.reddieAPI.saveConfig(newConfig);
 
@@ -209,28 +186,20 @@ async function saveSettings() {
     // Save to localStorage as backup
     localStorage.setItem('reddie-config', JSON.stringify(newConfig));
     closeSettings();
-    // Reload issues
+    // Reload issues (column mapping may have changed on a different Redmine instance)
+    await loadColumnMapping();
     await loadFromAPI();
   }
 }
 
 function getColumnFromStatus(status) {
   if (!status) return 'backlog';
-  const id = typeof status === 'number' ? status : status.id;
-  const name = typeof status === 'string' ? status : status.name || 'New';
-  return statusMap[name] || statusMap[id] || 'backlog';
+  const id = status.id;
+  return columnMapping.statusIdToColumn[id] || 'backlog';
 }
 
 function getStatusId(column) {
-  // Converge's /api/issues/[id]/status expects a numeric statusId
-  // (StatusCatalog id), not a status name string.
-  const reverseMap = {
-    'backlog': 1,       // New
-    'todo': 4,          // Feedback
-    'in-progress': 2,   // In Progress
-    'done': 3           // Resolved
-  };
-  return reverseMap[column] || 1;
+  return columnMapping.columnToStatusId[column] || columnMapping.columnToStatusId.backlog;
 }
 
 function initSortable() {
@@ -357,9 +326,10 @@ function loadState() {
 
 async function loadFromAPI() {
   try {
-    const response = await window.reddieAPI.fetchIssues({ pageSize: 100 });
+    const response = await window.reddieAPI.fetchIssues();
     if (response.error) {
       console.error('API Error:', response.error);
+      showToast(`Couldn't load issues: ${response.error}`, 'error');
       return;
     }
 
@@ -371,9 +341,9 @@ async function loadFromAPI() {
       const column = getColumnFromStatus(issue.status);
       const content = issue.subject || `Issue #${issue.id}`;
       apiState[column].push({
-        id: `api-${issue.redmineIssueId || issue.id}`,
+        id: `api-${issue.id}`,
         content: content,
-        issueId: issue.redmineIssueId || null
+        issueId: issue.id
       });
     });
 
@@ -426,5 +396,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadState();
   initSortable();
   await refreshConnectionStatus();
+  await loadColumnMapping();
   await loadFromAPI();
 });

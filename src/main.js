@@ -1,68 +1,25 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const http = require('http');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const { RedmineClient, buildColumnMapping } = require('./redmine-client');
 
-// Default config - overridden by .env if present, then by Settings at runtime
-const DEFAULT_API_BASE = process.env.API_BASE || 'http://100.110.136.4:3001';
+// Talks directly to Redmine's own REST API - no Converge or any other
+// intermediary backend required. Anyone can run this against their own
+// Redmine instance by setting these two values (Settings, or .env).
 const DEFAULT_REDMINE_BASE_URL = process.env.REDMINE_BASE_URL || 'https://redmine.nasctech.com';
 const DEFAULT_REDMINE_API_KEY = process.env.REDMINE_API_KEY || '';
 
-// Session cookie storage
-let sessionCookie = '';
 let config = {
-  apiBase: DEFAULT_API_BASE,
   redmineBaseUrl: DEFAULT_REDMINE_BASE_URL,
-  redmineApiKey: DEFAULT_REDMINE_API_KEY
+  redmineApiKey: DEFAULT_REDMINE_API_KEY,
 };
 
-function apiRequest(endpoint, method = 'GET', body = null) {
-  return new Promise((resolve, reject) => {
-    const url = `${config.apiBase}${endpoint}`;
-    const uri = new URL(url);
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      'X-Redmine-API-Key': config.redmineApiKey,
-      'X-Redmine-Base-Url': config.redmineBaseUrl
-    };
-    
-    if (sessionCookie) {
-      headers['Cookie'] = sessionCookie;
-    }
+let client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
+let columnMapping = { statusIdToColumn: {}, columnToStatusId: {} };
+let activities = [];
 
-    const options = {
-      hostname: uri.hostname,
-      port: uri.port,
-      path: uri.pathname + uri.search,
-      method: method,
-      headers: headers
-    };
-
-    const req = http.request(options, (res) => {
-      const setCookie = res.headers['set-cookie'];
-      if (setCookie) {
-        sessionCookie = setCookie[0].split(';')[0];
-      }
-
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch {
-          resolve({ error: data });
-        }
-      });
-    });
-
-    req.on('error', reject);
-    
-    if (body) {
-      req.write(JSON.stringify(body));
-    }
-    req.end();
-  });
+function rebuildClient() {
+  client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
 }
 
 async function connect() {
@@ -70,22 +27,24 @@ async function connect() {
     return { error: 'No API key configured' };
   }
   try {
-    const result = await apiRequest('/api/redmine/connect', 'POST', {
-      baseUrl: config.redmineBaseUrl,
-      apiKey: config.redmineApiKey
-    });
-    console.log('Connect result:', result);
-    return result;
+    const [user, statuses, activityList] = await Promise.all([
+      client.getCurrentUser(),
+      client.listStatuses(),
+      client.listActivities(),
+    ]);
+    columnMapping = buildColumnMapping(statuses);
+    activities = activityList;
+    return { ok: true, user };
   } catch (err) {
     console.error('Connect failed:', err.message);
     return { error: err.message };
   }
 }
 
-async function fetchIssues(params = {}) {
+async function fetchIssues() {
   try {
-    const query = new URLSearchParams(params).toString();
-    return await apiRequest(`/api/issues?${query}`);
+    const issues = await client.listMyIssues();
+    return { items: issues };
   } catch (err) {
     console.error('Fetch issues failed:', err.message);
     return { items: [], error: err.message };
@@ -94,7 +53,7 @@ async function fetchIssues(params = {}) {
 
 async function fetchIssueDetail(issueId) {
   try {
-    return await apiRequest(`/api/issues/${issueId}`);
+    return await client.getIssueDetail(issueId);
   } catch (err) {
     console.error('Fetch issue detail failed:', err.message);
     return { error: err.message };
@@ -120,7 +79,7 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   createWindow();
-  
+
   if (config.redmineApiKey) {
     await connect();
   }
@@ -145,17 +104,21 @@ ipcMain.handle('get-config', async () => {
 
 ipcMain.handle('save-config', async (event, newConfig) => {
   config = { ...config, ...newConfig };
-  console.log('Config saved:', config);
-  const result = await connect();
-  return result;
+  rebuildClient();
+  console.log('Config saved:', { ...config, redmineApiKey: config.redmineApiKey ? '(set)' : '' });
+  return await connect();
 });
 
 ipcMain.handle('check-connection', async () => {
   return await connect();
 });
 
-ipcMain.handle('fetch-issues', async (event, params) => {
-  return await fetchIssues(params);
+ipcMain.handle('get-column-mapping', async () => {
+  return columnMapping;
+});
+
+ipcMain.handle('fetch-issues', async () => {
+  return await fetchIssues();
 });
 
 ipcMain.handle('fetch-issue-detail', async (event, issueId) => {
@@ -163,9 +126,32 @@ ipcMain.handle('fetch-issue-detail', async (event, issueId) => {
 });
 
 ipcMain.handle('update-status', async (event, { issueId, statusId }) => {
-  return await apiRequest(`/api/issues/${issueId}/status`, 'POST', { statusId });
+  try {
+    await client.updateStatus(issueId, statusId);
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
 });
 
 ipcMain.handle('add-comment', async (event, { issueId, comment }) => {
-  return await apiRequest(`/api/issues/${issueId}/comment`, 'POST', { comment });
+  try {
+    await client.addComment(issueId, comment);
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('fetch-activities', async () => {
+  return { items: activities };
+});
+
+ipcMain.handle('add-timelog', async (event, { issueId, hours, activityId, comment, spentOn }) => {
+  try {
+    await client.addTimeEntry(issueId, { hours, activityId, comment, spentOn });
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
 });
