@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  # Manual trigger - use this to test a build without cutting a release.
+  workflow_dispatch:
+  # Real builds happen on version tags (e.g. v1.0.1), not every push -
+  # this repo has frequent commits and a full 3-platform matrix build on
+  # every one would burn CI minutes for no reason.
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact-path: dist/*.dmg
+          - os: windows-latest
+            artifact-path: dist/*.exe
+          - os: ubuntu-latest
+            artifact-path: |
+              dist/*.AppImage
+              dist/*.deb
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run build
+        env:
+          # electron-builder auto-detects the target from the runner OS -
+          # no --mac/--win/--linux flag needed. Unsigned/ad-hoc on every
+          # platform: no Apple Developer cert or Windows code-signing
+          # cert configured here, so macOS builds are ad-hoc signed (same
+          # as local builds) and the Windows exe is unsigned (SmartScreen
+          # warning on first run, not a hard block like macOS Gatekeeper).
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reddie-${{ matrix.os }}
+          path: ${{ matrix.artifact-path }}
+          if-no-files-found: error
+          retention-days: 30
