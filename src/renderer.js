@@ -76,6 +76,107 @@ async function refreshConnectionStatus() {
   }
 }
 
+// Issue detail
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function formatDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+}
+
+function renderIssueDetail(issue) {
+  document.getElementById('detail-subject').textContent = issue.subject || `Issue #${issue.redmineIssueId}`;
+
+  const journalsHtml = (issue.journals || [])
+    .filter(j => j.notes)
+    .map(j => `
+      <div class="journal-entry">
+        <div class="journal-meta">
+          <strong>${escapeHtml(j.author || 'Unknown')}</strong>
+          <span class="journal-date">${formatDateTime(j.createdOnRemote)}</span>
+        </div>
+        <div class="journal-notes">${escapeHtml(j.notes)}</div>
+      </div>
+    `).join('') || '<div class="detail-empty">No comments yet.</div>';
+
+  const timeEntriesHtml = (issue.timeEntries || [])
+    .map(t => `
+      <div class="time-entry-row">
+        <span>${t.hours}h — ${escapeHtml(t.activityName || 'Activity')}</span>
+        <span class="journal-date">${formatDate(t.spentOn)}${t.authorName ? ' · ' + escapeHtml(t.authorName) : ''}</span>
+      </div>
+    `).join('') || '<div class="detail-empty">No time logged.</div>';
+  const totalHours = (issue.timeEntries || []).reduce((sum, t) => sum + (t.hours || 0), 0);
+
+  const attachmentsHtml = (issue.attachments || [])
+    .map(a => `<div class="attachment-row">📎 ${escapeHtml(a.filename)} <span class="journal-date">(${Math.round((a.filesize || 0) / 1024)} KB)</span></div>`)
+    .join('') || '<div class="detail-empty">No attachments.</div>';
+
+  const githubLinksHtml = (issue.githubLinks || [])
+    .map(g => `<div class="attachment-row">🔗 ${escapeHtml(g.repositoryFullName)}${g.githubPrNumber ? ' #' + g.githubPrNumber : g.githubIssueNumber ? ' #' + g.githubIssueNumber : ''}</div>`)
+    .join('');
+
+  document.getElementById('detail-body').innerHTML = `
+    <div class="detail-badges">
+      <span class="detail-badge">${escapeHtml(issue.statusName || '—')}</span>
+      ${issue.priority ? `<span class="detail-badge">${escapeHtml(issue.priority)}</span>` : ''}
+      ${issue.tracker ? `<span class="detail-badge">${escapeHtml(issue.tracker)}</span>` : ''}
+    </div>
+    <div class="detail-meta">
+      <div><strong>Project</strong> ${escapeHtml(issue.projectName || '—')}</div>
+      <div><strong>Assignee</strong> ${escapeHtml(issue.assignedToName || 'Unassigned')}</div>
+      <div><strong>Author</strong> ${escapeHtml(issue.authorName || '—')}</div>
+      <div><strong>Due</strong> ${formatDate(issue.dueDate)}</div>
+    </div>
+    <div class="detail-section">
+      <h3>Description</h3>
+      <div class="detail-description">${issue.description ? escapeHtml(issue.description) : '<span class="detail-empty">No description.</span>'}</div>
+    </div>
+    ${githubLinksHtml ? `<div class="detail-section"><h3>GitHub</h3>${githubLinksHtml}</div>` : ''}
+    <div class="detail-section">
+      <h3>Time logged${totalHours ? ` — ${totalHours}h total` : ''}</h3>
+      ${timeEntriesHtml}
+    </div>
+    <div class="detail-section">
+      <h3>Attachments</h3>
+      ${attachmentsHtml}
+    </div>
+    <div class="detail-section">
+      <h3>Activity</h3>
+      ${journalsHtml}
+    </div>
+  `;
+}
+
+async function openIssueDetail(issueId) {
+  document.getElementById('issue-detail-modal').classList.add('show');
+  document.getElementById('detail-subject').textContent = 'Loading…';
+  document.getElementById('detail-body').innerHTML = '<div class="detail-loading">Loading…</div>';
+
+  const result = await window.reddieAPI.fetchIssueDetail(issueId);
+  if (!result || result.error || !result.issue) {
+    document.getElementById('detail-subject').textContent = 'Error';
+    document.getElementById('detail-body').innerHTML = `<div class="detail-empty">${escapeHtml((result && result.error) || 'Failed to load issue.')}</div>`;
+    return;
+  }
+  renderIssueDetail(result.issue);
+}
+
+function closeIssueDetail() {
+  document.getElementById('issue-detail-modal').classList.remove('show');
+}
+
 // Settings
 function openSettings() {
   document.getElementById('settings-modal').classList.add('show');
@@ -182,7 +283,8 @@ function createTaskCard(id, content, issueId = null) {
   card.innerHTML = `
     <div class="task-content" contenteditable="true" onblur="saveState()">${content}</div>
     <div class="task-actions">
-      ${issueId ? `<span class="issue-id">#${issueId}</span>` : ''}
+      ${issueId ? `<span class="issue-id" onclick="openIssueDetail('${issueId}')" title="View details">#${issueId}</span>` : ''}
+      ${issueId ? `<button class="details-btn" onclick="openIssueDetail('${issueId}')">Details</button>` : ''}
       <button class="delete-task-btn" onclick="deleteTask('${id}')">Delete</button>
     </div>
   `;
@@ -300,6 +402,8 @@ window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.saveSettings = saveSettings;
 window.toggleTheme = toggleTheme;
+window.openIssueDetail = openIssueDetail;
+window.closeIssueDetail = closeIssueDetail;
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();

@@ -92,6 +92,15 @@ async function fetchIssues(params = {}) {
   }
 }
 
+async function fetchIssueDetail(issueId) {
+  try {
+    return await apiRequest(`/api/issues/${issueId}`);
+  } catch (err) {
+    console.error('Fetch issue detail failed:', err.message);
+    return { error: err.message };
+  }
+}
+
 let mainWindow;
 
 function createWindow() {
@@ -147,6 +156,10 @@ ipcMain.handle('check-connection', async () => {
 
 ipcMain.handle('fetch-issues', async (event, params) => {
   return await fetchIssues(params);
+});
+
+ipcMain.handle('fetch-issue-detail', async (event, issueId) => {
+  return await fetchIssueDetail(issueId);
 });
 
 ipcMain.handle('update-status', async (event, { issueId, statusId }) => {

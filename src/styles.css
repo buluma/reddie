@@ -387,3 +387,129 @@ header h1 {
 .toast-success {
   border-left-color: #2ecc71;
 }
+
+/* Issue detail modal */
+.detail-modal-content {
+  width: 560px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-modal-body {
+  overflow-y: auto;
+}
+
+.detail-loading, .detail-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.detail-badges {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.detail-badge {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.detail-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.detail-meta strong {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.detail-section {
+  margin-bottom: 20px;
+}
+
+.detail-section h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.detail-description {
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.journal-entry {
+  padding: 10px 0;
+  border-top: 1px solid var(--modal-border);
+}
+
+.journal-entry:first-child {
+  border-top: none;
+}
+
+.journal-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.journal-date {
+  color: var(--text-muted);
+}
+
+.journal-notes {
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.time-entry-row, .attachment-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 6px 0;
+  border-top: 1px solid var(--modal-border);
+}
+
+.time-entry-row:first-child, .attachment-row:first-child {
+  border-top: none;
+}
+
+.details-btn {
+  background: none;
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.details-btn:hover {
+  color: var(--text-color);
+  border-color: var(--primary-color);
+}
+
+.issue-id {
+  cursor: pointer;
+}

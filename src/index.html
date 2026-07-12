@@ -81,6 +81,19 @@
     </div>
   </div>
 
+  <!-- Issue Detail Modal -->
+  <div id="issue-detail-modal" class="modal">
+    <div class="modal-content detail-modal-content">
+      <div class="modal-header">
+        <h2 id="detail-subject">Issue</h2>
+        <button class="close-btn" onclick="closeIssueDetail()">×</button>
+      </div>
+      <div class="modal-body detail-modal-body" id="detail-body">
+        <div class="detail-loading">Loading…</div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
 
   <script src="vendor/sortable.min.js"></script>
