@@ -64,3 +64,19 @@ jobs:
           path: ${{ matrix.artifact-path }}
           if-no-files-found: error
           retention-days: 30
+
+  # electron-builder always creates the GitHub Release as a draft when
+  # publishing from a matrix build (each OS job appends its own assets to
+  # the same draft, so nothing can safely un-draft it mid-matrix). Once
+  # every platform has published its assets, flip it live so
+  # electron-updater (which ignores drafts) can actually see it.
+  publish-release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - run: gh release edit "${{ github.ref_name }}" --draft=false --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
