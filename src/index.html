@@ -115,7 +115,7 @@
         </div>
         <div class="form-group">
           <label>Tracker</label>
-          <select id="new-ticket-tracker"></select>
+          <select id="new-ticket-tracker" onchange="loadNewTicketCustomFields()"></select>
         </div>
         <div class="form-group">
           <label>Subject</label>
@@ -125,6 +125,7 @@
           <label>Description</label>
           <textarea id="new-ticket-description" rows="4" placeholder="Optional details"></textarea>
         </div>
+        <div id="new-ticket-custom-fields"></div>
         <div class="form-actions">
           <button id="new-ticket-submit-btn" onclick="submitNewTicket()">Create</button>
         </div>

@@ -515,6 +515,7 @@ async function loadNewTicketTrackers() {
   const projectId = document.getElementById('new-ticket-project').value;
   const trackerSelect = document.getElementById('new-ticket-tracker');
   trackerSelect.innerHTML = '<option>Loading…</option>';
+  document.getElementById('new-ticket-custom-fields').innerHTML = '';
   if (!projectId) return;
 
   const result = await window.reddieAPI.fetchProjectTrackers(projectId);
@@ -522,6 +523,30 @@ async function loadNewTicketTrackers() {
   trackerSelect.innerHTML = trackers.length
     ? trackers.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
     : '<option>No trackers enabled on this project</option>';
+  if (trackers.length) await loadNewTicketCustomFields();
+}
+
+async function loadNewTicketCustomFields() {
+  const projectId = document.getElementById('new-ticket-project').value;
+  const trackerId = document.getElementById('new-ticket-tracker').value;
+  const container = document.getElementById('new-ticket-custom-fields');
+  container.innerHTML = '';
+  if (!projectId || !trackerId) return;
+
+  // No admin-only /custom_fields.json access from a regular API key, so
+  // this only knows a field exists (id/name) by finding it on a sample
+  // existing issue of the same project+tracker - no format/required-ness/
+  // possible_values, hence plain text inputs only. If nothing of this
+  // pairing exists yet to sample, the form just won't offer any (Redmine's
+  // own validation error still surfaces on submit if one was required).
+  const result = await window.reddieAPI.fetchTrackerCustomFields(projectId, trackerId);
+  const fields = (result && result.items) || [];
+  container.innerHTML = fields.map(f => `
+    <div class="form-group">
+      <label>${escapeHtml(f.name)}</label>
+      <input type="text" class="new-ticket-custom-field" data-field-id="${f.id}" placeholder="${escapeHtml(f.value || '')}">
+    </div>
+  `).join('');
 }
 
 function closeNewTicket() {
@@ -544,10 +569,14 @@ async function submitNewTicket() {
     return;
   }
 
+  const customFields = Array.from(document.querySelectorAll('.new-ticket-custom-field'))
+    .filter(input => input.value.trim())
+    .map(input => ({ id: Number(input.dataset.fieldId), value: input.value.trim() }));
+
   btn.disabled = true;
   btn.textContent = 'Creating…';
   try {
-    const result = await window.reddieAPI.createIssue({ projectId, trackerId, subject, description });
+    const result = await window.reddieAPI.createIssue({ projectId, trackerId, subject, description, customFields });
     if (result && result.error) {
       throw new Error(result.error);
     }
@@ -906,6 +935,7 @@ window.setBoardMode = setBoardMode;
 window.openNewTicket = openNewTicket;
 window.closeNewTicket = closeNewTicket;
 window.loadNewTicketTrackers = loadNewTicketTrackers;
+window.loadNewTicketCustomFields = loadNewTicketCustomFields;
 window.submitNewTicket = submitNewTicket;
 window.checkForUpdates = checkForUpdates;
 

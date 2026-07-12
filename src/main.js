@@ -261,7 +261,16 @@ ipcMain.handle('fetch-project-trackers', async (event, projectId) => {
   }
 });
 
-ipcMain.handle('create-issue', async (event, { projectId, trackerId, subject, description }) => {
+ipcMain.handle('fetch-tracker-custom-fields', async (event, { projectId, trackerId }) => {
+  try {
+    const fields = await client.listTrackerCustomFields(projectId, trackerId);
+    return { items: fields };
+  } catch (err) {
+    return { items: [], error: err.message };
+  }
+});
+
+ipcMain.handle('create-issue', async (event, { projectId, trackerId, subject, description, customFields }) => {
   try {
     const result = await client.createIssue({
       projectId,
@@ -269,6 +278,7 @@ ipcMain.handle('create-issue', async (event, { projectId, trackerId, subject, de
       subject,
       description,
       assigneeId: currentUserId,
+      customFields,
     });
     return { ok: true, issue: result.issue };
   } catch (err) {

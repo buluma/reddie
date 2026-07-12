@@ -154,7 +154,7 @@ class RedmineClient {
     return (result.project && result.project.trackers) || [];
   }
 
-  createIssue({ projectId, trackerId, subject, description, assigneeId }) {
+  createIssue({ projectId, trackerId, subject, description, assigneeId, customFields }) {
     return this.post('/issues.json', {
       issue: {
         project_id: projectId,
@@ -162,8 +162,25 @@ class RedmineClient {
         subject,
         description: description || '',
         ...(assigneeId ? { assigned_to_id: assigneeId } : {}),
+        ...(customFields && customFields.length ? { custom_fields: customFields } : {}),
       },
     });
+  }
+
+  // /custom_fields.json (the authoritative field-definition endpoint -
+  // format, possible_values, is_required) is admin-only and 403s for a
+  // regular API key (confirmed against a real instance). The only way to
+  // know which custom fields a project+tracker pairing uses is to sample
+  // an existing issue of that pairing and read its custom_fields array -
+  // this loses format/required-ness info, so the create form can only
+  // offer plain text inputs, not proper dropdowns/checkboxes. Returns []
+  // if no existing issue of that pairing was found to sample.
+  async listTrackerCustomFields(projectId, trackerId) {
+    const result = await this.get(
+      `/issues.json?project_id=${projectId}&tracker_id=${trackerId}&status_id=*&limit=1`,
+    );
+    const issue = (result.issues || [])[0];
+    return (issue && issue.custom_fields) || [];
   }
 
   async listMyIssues() {
