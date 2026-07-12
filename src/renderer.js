@@ -130,7 +130,8 @@ function formatDateTime(value) {
 }
 
 function renderIssueDetail(issue, timeEntries, members) {
-  document.getElementById('detail-subject').textContent = issue.subject || `Issue #${issue.id}`;
+  currentDetailSubject = issue.subject || `Issue #${issue.id}`;
+  document.getElementById('detail-subject').textContent = currentDetailSubject;
 
   // The current assignee might not hold project membership anymore (left
   // the project, role revoked) - keep them selectable anyway so the
@@ -225,6 +226,10 @@ let currentDetailIssueId = null;
 // to re-fetch the project's member list just to re-render the same
 // assignee dropdown.
 let currentDetailMembers = [];
+// The subject as last loaded from Redmine - lets the blur handler on
+// #detail-subject skip a no-op PUT when focus just left the field without
+// an actual edit.
+let currentDetailSubject = null;
 
 async function openIssueDetail(issueId) {
   currentDetailIssueId = issueId;
@@ -320,6 +325,31 @@ function closeIssueDetail() {
   document.getElementById('issue-detail-modal').classList.remove('show');
   currentDetailIssueId = null;
   currentDetailMembers = [];
+  currentDetailSubject = null;
+}
+
+async function saveSubjectEdit() {
+  if (!currentDetailIssueId) return;
+  const el = document.getElementById('detail-subject');
+  const subject = el.textContent.trim();
+  if (subject === currentDetailSubject) return;
+  if (!subject) {
+    showToast('Subject cannot be empty', 'error');
+    el.textContent = currentDetailSubject;
+    return;
+  }
+  try {
+    const result = await window.reddieAPI.updateSubject(currentDetailIssueId, subject);
+    if (result && result.error) {
+      throw new Error(result.error);
+    }
+    currentDetailSubject = subject;
+    showToast('Subject updated', 'success');
+    await loadFromAPI();
+  } catch (err) {
+    showToast(`Couldn't update subject: ${err.message || err}`, 'error');
+    el.textContent = currentDetailSubject;
+  }
 }
 
 async function postComment() {
@@ -639,11 +669,17 @@ function createTaskCard(id, content, issueId = null) {
   card.className = issueId ? 'task-card' : 'task-card local-card';
   card.id = `task-${id}`;
   if (issueId) card.dataset.issueId = issueId;
+  // Real tickets' subject only edits from the ticket detail view now (goes
+  // through updateSubject -> Redmine); editing it on the card used to be
+  // purely cosmetic since loadFromAPI() overwrites it with the real value
+  // on the very next refresh anyway. Local scratch cards have no detail
+  // view at all, so inline editing stays their only way to rename.
+  const contentAttrs = issueId ? '' : ' contenteditable="true" onblur="saveState()"';
   card.innerHTML = `
-    <div class="task-content" contenteditable="true" onblur="saveState()">${content}</div>
+    ${issueId ? `<div class="task-id-badge" onclick="openIssueDetail('${issueId}')" title="View details">#${issueId}</div>` : ''}
+    <div class="task-content"${contentAttrs}>${content}</div>
     <div class="task-actions">
       ${!issueId ? `<span class="local-badge" title="Personal card, not synced to Redmine">Local</span>` : ''}
-      ${issueId ? `<span class="issue-id" onclick="openIssueDetail('${issueId}')" title="View details">#${issueId}</span>` : ''}
       ${issueId ? `<button class="details-btn" onclick="openIssueDetail('${issueId}')">Details</button>` : ''}
       <button class="delete-task-btn" onclick="deleteTask('${id}')">Delete</button>
     </div>
@@ -678,10 +714,15 @@ function addTask(columnId) {
 
 function deleteTask(id) {
   const card = document.getElementById(`task-${id}`);
-  if (card) {
-    card.remove();
-    saveState();
-  }
+  if (!card) return;
+  const label = card.querySelector('.task-content').innerText.trim() || 'this card';
+  // Removing a real ticket's card only clears it from the board locally
+  // (loadFromAPI() will just re-add it on the next refresh, since it's
+  // still a real assigned issue in Redmine) - a local scratch card has no
+  // such safety net, its only copy is this one. Confirm either way.
+  if (!confirm(`Delete "${label}"?`)) return;
+  card.remove();
+  saveState();
 }
 
 function saveState() {
@@ -824,6 +865,7 @@ window.submitTimelog = submitTimelog;
 window.changeAssignee = changeAssignee;
 window.changePriority = changePriority;
 window.uploadAttachment = uploadAttachment;
+window.saveSubjectEdit = saveSubjectEdit;
 window.openNewTicket = openNewTicket;
 window.closeNewTicket = closeNewTicket;
 window.loadNewTicketTrackers = loadNewTicketTrackers;

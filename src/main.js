@@ -301,6 +301,15 @@ ipcMain.handle('update-priority', async (event, { issueId, priorityId }) => {
   }
 });
 
+ipcMain.handle('update-subject', async (event, { issueId, subject }) => {
+  try {
+    await client.updateSubject(issueId, subject);
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 ipcMain.handle('upload-attachment', async (event, issueId) => {
   // File picking has to happen here, not in the renderer - contextIsolation
   // means the renderer can't touch the filesystem at all, so there's no

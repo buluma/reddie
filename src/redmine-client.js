@@ -113,6 +113,10 @@ class RedmineClient {
     return this.put(`/issues/${issueId}.json`, { issue: { priority_id: priorityId } });
   }
 
+  updateSubject(issueId, subject) {
+    return this.put(`/issues/${issueId}.json`, { issue: { subject } });
+  }
+
   async uploadFile(buffer, filename, contentType) {
     // Redmine's attachment flow is two steps: upload the raw bytes to get
     // a one-time token, then reference that token from the issue update

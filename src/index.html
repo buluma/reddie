@@ -132,7 +132,7 @@
   <div id="issue-detail-modal" class="modal">
     <div class="modal-content detail-modal-content">
       <div class="modal-header">
-        <h2 id="detail-subject">Issue</h2>
+        <h2 id="detail-subject" contenteditable="true" onblur="saveSubjectEdit()" title="Click to edit the subject">Issue</h2>
         <button class="close-btn" onclick="closeIssueDetail()">×</button>
       </div>
       <div class="modal-body detail-modal-body" id="detail-body">

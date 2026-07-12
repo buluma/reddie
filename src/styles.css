@@ -150,6 +150,20 @@ body.platform-darwin .app-container {
   border-left: 3px solid #f0a020;
 }
 
+.task-id-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.task-id-badge:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
 .local-badge {
   font-size: 10px;
   text-transform: uppercase;
@@ -353,6 +367,22 @@ header h1 {
   font-weight: 500;
 }
 
+#detail-subject {
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+}
+
+#detail-subject:hover {
+  background: var(--input-bg);
+}
+
+#detail-subject:focus {
+  outline: none;
+  background: var(--input-bg);
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+
 .close-btn {
   background: none;
   border: none;
@@ -420,12 +450,6 @@ header h1 {
   background: transparent !important;
   color: var(--text-color) !important;
   border: 1px solid var(--input-border) !important;
-}
-
-.issue-id {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-right: 8px;
 }
 
 /* Toasts */
@@ -605,10 +629,6 @@ header h1 {
 .details-btn:hover {
   color: var(--text-color);
   border-color: var(--primary-color);
-}
-
-.issue-id {
-  cursor: pointer;
 }
 
 .detail-modal-footer {
