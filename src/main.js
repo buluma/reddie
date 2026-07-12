@@ -213,6 +213,24 @@ ipcMain.handle('update-status', async (event, { issueId, statusId }) => {
   }
 });
 
+ipcMain.handle('fetch-project-members', async (event, projectId) => {
+  try {
+    const members = await client.listProjectMembers(projectId);
+    return { items: members };
+  } catch (err) {
+    return { items: [], error: err.message };
+  }
+});
+
+ipcMain.handle('update-assignee', async (event, { issueId, userId }) => {
+  try {
+    await client.updateAssignee(issueId, userId);
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 ipcMain.handle('add-comment', async (event, { issueId, comment }) => {
   try {
     await client.addComment(issueId, comment);

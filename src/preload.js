@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   fetchIssues: (params) => ipcRenderer.invoke('fetch-issues', params),
   fetchIssueDetail: (issueId) => ipcRenderer.invoke('fetch-issue-detail', issueId),
   updateStatus: (issueId, statusId) => ipcRenderer.invoke('update-status', { issueId, statusId }),
+  fetchProjectMembers: (projectId) => ipcRenderer.invoke('fetch-project-members', projectId),
+  updateAssignee: (issueId, userId) => ipcRenderer.invoke('update-assignee', { issueId, userId }),
   addComment: (issueId, comment) => ipcRenderer.invoke('add-comment', { issueId, comment }),
   fetchActivities: () => ipcRenderer.invoke('fetch-activities'),
   addTimelog: (issueId, entry) => ipcRenderer.invoke('add-timelog', { issueId, ...entry }),

@@ -487,6 +487,22 @@ header h1 {
   margin-bottom: 2px;
 }
 
+.assignee-select {
+  padding: 4px 8px;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-size: 13px;
+  font-family: inherit;
+  max-width: 100%;
+}
+
+.assignee-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
 .detail-section {
   margin-bottom: 20px;
 }

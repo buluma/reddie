@@ -119,6 +119,26 @@ class RedmineClient {
     return this.put(`/issues/${issueId}.json`, { issue: { status_id: statusId } });
   }
 
+  async listProjectMembers(projectId) {
+    const result = await this.get(`/projects/${projectId}/memberships.json?limit=100`);
+    // Memberships are per-role, so the same user can appear more than once
+    // (one row per role they hold on the project) - dedupe by user id.
+    // Group memberships have no `user` field at all - skip those, they
+    // aren't valid issue assignees on their own.
+    const byId = new Map();
+    (result.memberships || []).forEach((m) => {
+      if (m.user && !byId.has(m.user.id)) byId.set(m.user.id, m.user);
+    });
+    return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  updateAssignee(issueId, userId) {
+    // Redmine clears the assignee when assigned_to_id is an empty string -
+    // null/undefined would be dropped from the JSON body entirely and
+    // leave the existing assignee untouched instead of unassigning.
+    return this.put(`/issues/${issueId}.json`, { issue: { assigned_to_id: userId || '' } });
+  }
+
   addComment(issueId, comment) {
     return this.put(`/issues/${issueId}.json`, { issue: { notes: comment } });
   }

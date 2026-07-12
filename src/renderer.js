@@ -118,8 +118,20 @@ function formatDateTime(value) {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
-function renderIssueDetail(issue, timeEntries) {
+function renderIssueDetail(issue, timeEntries, members) {
   document.getElementById('detail-subject').textContent = issue.subject || `Issue #${issue.id}`;
+
+  // The current assignee might not hold project membership anymore (left
+  // the project, role revoked) - keep them selectable anyway so the
+  // dropdown reflects reality instead of silently jumping to "Unassigned".
+  const memberOptions = [...(members || [])];
+  if (issue.assigned_to && !memberOptions.some(m => m.id === issue.assigned_to.id)) {
+    memberOptions.unshift(issue.assigned_to);
+  }
+  const assigneeOptionsHtml = [
+    `<option value="">Unassigned</option>`,
+    ...memberOptions.map(m => `<option value="${m.id}" ${issue.assigned_to && issue.assigned_to.id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`),
+  ].join('');
 
   const journalsHtml = (issue.journals || [])
     .filter(j => j.notes)
@@ -154,7 +166,7 @@ function renderIssueDetail(issue, timeEntries) {
     </div>
     <div class="detail-meta">
       <div><strong>Project</strong> ${escapeHtml((issue.project && issue.project.name) || '—')}</div>
-      <div><strong>Assignee</strong> ${escapeHtml((issue.assigned_to && issue.assigned_to.name) || 'Unassigned')}</div>
+      <div><strong>Assignee</strong> <select id="assignee-select" class="assignee-select" onchange="changeAssignee(this.value)">${assigneeOptionsHtml}</select></div>
       <div><strong>Author</strong> ${escapeHtml((issue.author && issue.author.name) || '—')}</div>
       <div><strong>Due</strong> ${formatDate(issue.due_date)}</div>
     </div>
@@ -186,6 +198,10 @@ function renderIssueDetail(issue, timeEntries) {
 }
 
 let currentDetailIssueId = null;
+// Cached alongside the open issue so comment/timelog refreshes don't need
+// to re-fetch the project's member list just to re-render the same
+// assignee dropdown.
+let currentDetailMembers = [];
 
 async function openIssueDetail(issueId) {
   currentDetailIssueId = issueId;
@@ -200,12 +216,39 @@ async function openIssueDetail(issueId) {
     document.getElementById('detail-body').innerHTML = `<div class="detail-empty">${escapeHtml((result && result.error) || 'Failed to load issue.')}</div>`;
     return;
   }
-  renderIssueDetail(result.issue, result.timeEntries);
+
+  const projectId = result.issue.project && result.issue.project.id;
+  const membersResult = projectId ? await window.reddieAPI.fetchProjectMembers(projectId) : { items: [] };
+  currentDetailMembers = (membersResult && membersResult.items) || [];
+  renderIssueDetail(result.issue, result.timeEntries, currentDetailMembers);
+}
+
+async function changeAssignee(value) {
+  if (!currentDetailIssueId) return;
+  const select = document.getElementById('assignee-select');
+  const userId = value ? Number(value) : null;
+  select.disabled = true;
+  try {
+    const result = await window.reddieAPI.updateAssignee(currentDetailIssueId, userId);
+    if (result && result.error) {
+      throw new Error(result.error);
+    }
+    showToast('Assignee updated', 'success');
+    await loadFromAPI();
+  } catch (err) {
+    showToast(`Couldn't update assignee: ${err.message || err}`, 'error');
+    // Re-load the detail view so the dropdown reflects the real current
+    // assignee rather than whatever the failed selection left it showing.
+    await openIssueDetail(currentDetailIssueId);
+  } finally {
+    if (select) select.disabled = false;
+  }
 }
 
 function closeIssueDetail() {
   document.getElementById('issue-detail-modal').classList.remove('show');
   currentDetailIssueId = null;
+  currentDetailMembers = [];
 }
 
 async function postComment() {
@@ -228,7 +271,7 @@ async function postComment() {
     const issueId = currentDetailIssueId;
     const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
     if (refreshed && !refreshed.error && refreshed.issue) {
-      renderIssueDetail(refreshed.issue, refreshed.timeEntries);
+      renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
     }
   } catch (err) {
     showToast(`Couldn't post comment: ${err.message || err}`, 'error');
@@ -272,7 +315,7 @@ async function submitTimelog() {
     const issueId = currentDetailIssueId;
     const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
     if (refreshed && !refreshed.error && refreshed.issue) {
-      renderIssueDetail(refreshed.issue, refreshed.timeEntries);
+      renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
     }
   } catch (err) {
     showToast(`Couldn't log time: ${err.message || err}`, 'error');
@@ -637,6 +680,7 @@ window.openIssueDetail = openIssueDetail;
 window.closeIssueDetail = closeIssueDetail;
 window.postComment = postComment;
 window.submitTimelog = submitTimelog;
+window.changeAssignee = changeAssignee;
 window.checkForUpdates = checkForUpdates;
 
 document.addEventListener('DOMContentLoaded', async () => {
