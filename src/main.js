@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { RedmineClient, buildColumnMapping } = require('./redmine-client');
 const { loadPersistedConfig, persistConfig } = require('./config-store');
@@ -290,6 +291,26 @@ ipcMain.handle('update-priority', async (event, { issueId, priorityId }) => {
   try {
     await client.updatePriority(issueId, priorityId);
     return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('upload-attachment', async (event, issueId) => {
+  // File picking has to happen here, not in the renderer - contextIsolation
+  // means the renderer can't touch the filesystem at all, so there's no
+  // reason to round-trip a chosen path through it either.
+  const picked = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'] });
+  if (picked.canceled || !picked.filePaths.length) {
+    return { canceled: true };
+  }
+  const filePath = picked.filePaths[0];
+  const filename = path.basename(filePath);
+  try {
+    const buffer = fs.readFileSync(filePath);
+    const token = await client.uploadFile(buffer, filename);
+    await client.attachToIssue(issueId, token, filename);
+    return { ok: true, filename };
   } catch (err) {
     return { error: err.message };
   }

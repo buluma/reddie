@@ -209,6 +209,7 @@ function renderIssueDetail(issue, timeEntries, members) {
     <div class="detail-section">
       <h3>Attachments</h3>
       ${attachmentsHtml}
+      <button id="attachment-upload-btn" class="secondary-btn" onclick="uploadAttachment()">Attach file…</button>
     </div>
     <div class="detail-section">
       <h3>Activity</h3>
@@ -281,6 +282,35 @@ async function changePriority(value) {
     await openIssueDetail(currentDetailIssueId);
   } finally {
     if (select) select.disabled = false;
+  }
+}
+
+async function uploadAttachment() {
+  if (!currentDetailIssueId) return;
+  const btn = document.getElementById('attachment-upload-btn');
+  const issueId = currentDetailIssueId;
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  try {
+    const result = await window.reddieAPI.uploadAttachment(issueId);
+    if (result && result.canceled) {
+      return;
+    }
+    if (result && result.error) {
+      throw new Error(result.error);
+    }
+    showToast(`${result.filename} attached`, 'success');
+    const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
+    if (refreshed && !refreshed.error && refreshed.issue) {
+      renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
+    }
+  } catch (err) {
+    showToast(`Couldn't attach file: ${err.message || err}`, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Attach file…';
+    }
   }
 }
 
@@ -791,6 +821,7 @@ window.postComment = postComment;
 window.submitTimelog = submitTimelog;
 window.changeAssignee = changeAssignee;
 window.changePriority = changePriority;
+window.uploadAttachment = uploadAttachment;
 window.openNewTicket = openNewTicket;
 window.closeNewTicket = closeNewTicket;
 window.loadNewTicketTrackers = loadNewTicketTrackers;

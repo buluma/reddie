@@ -6,7 +6,10 @@ const https = require('https');
 // Redmine base URL + a personal API key (Settings, or REDMINE_BASE_URL/
 // REDMINE_API_KEY in .env).
 
-function request(baseUrl, apiKey, path, method = 'GET', body = null) {
+// `raw: true` sends `body` as-is (a Buffer, for the uploads endpoint,
+// which wants the file's actual bytes) instead of JSON-encoding it -
+// everything else about the request/response handling is identical.
+function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = false, contentType } = {}) {
   return new Promise((resolve, reject) => {
     let uri;
     try {
@@ -16,11 +19,13 @@ function request(baseUrl, apiKey, path, method = 'GET', body = null) {
       return;
     }
     const transport = uri.protocol === 'https:' ? https : http;
+    const payload = body ? (raw ? body : JSON.stringify(body)) : null;
 
     const headers = {
-      'Content-Type': 'application/json',
+      'Content-Type': contentType || 'application/json',
       'X-Redmine-API-Key': apiKey,
     };
+    if (payload) headers['Content-Length'] = Buffer.byteLength(payload);
 
     const req = transport.request(
       {
@@ -57,7 +62,7 @@ function request(baseUrl, apiKey, path, method = 'GET', body = null) {
     );
 
     req.on('error', reject);
-    if (body) req.write(JSON.stringify(body));
+    if (payload) req.write(payload);
     req.end();
   });
 }
@@ -78,6 +83,10 @@ class RedmineClient {
 
   post(path, body) {
     return request(this.baseUrl, this.apiKey, path, 'POST', body);
+  }
+
+  postRaw(path, buffer, contentType) {
+    return request(this.baseUrl, this.apiKey, path, 'POST', buffer, { raw: true, contentType });
   }
 
   async getCurrentUser() {
@@ -102,6 +111,26 @@ class RedmineClient {
 
   updatePriority(issueId, priorityId) {
     return this.put(`/issues/${issueId}.json`, { issue: { priority_id: priorityId } });
+  }
+
+  async uploadFile(buffer, filename, contentType) {
+    // Redmine's attachment flow is two steps: upload the raw bytes to get
+    // a one-time token, then reference that token from the issue update
+    // below - the file itself is never sent as part of the issue PUT.
+    const result = await this.postRaw(
+      `/uploads.json?filename=${encodeURIComponent(filename)}`,
+      buffer,
+      contentType || 'application/octet-stream',
+    );
+    return result.upload.token;
+  }
+
+  attachToIssue(issueId, token, filename, contentType) {
+    return this.put(`/issues/${issueId}.json`, {
+      issue: {
+        uploads: [{ token, filename, content_type: contentType || 'application/octet-stream' }],
+      },
+    });
   }
 
   async listProjects() {
