@@ -141,6 +141,10 @@ ipcMain.handle('save-config', async (event, newConfig) => {
   return result;
 });
 
+ipcMain.handle('check-connection', async () => {
+  return await connect();
+});
+
 ipcMain.handle('fetch-issues', async (event, params) => {
   return await fetchIssues(params);
 });

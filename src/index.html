@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,8 +10,17 @@
   <div class="drag-handle-bar"></div>
   <div class="app-container">
     <header>
-      <h1>Reddie</h1>
-      <button class="settings-btn" onclick="openSettings()">⚙️</button>
+      <div class="header-left">
+        <h1>Reddie</h1>
+        <span id="connection-status" class="connection-status">
+          <span class="status-dot"></span>
+          <span class="status-text">Connecting…</span>
+        </span>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">🌙</button>
+        <button class="settings-btn" onclick="openSettings()">⚙️</button>
+      </div>
     </header>
     <main class="dashboard">
       <div class="column" id="backlog">

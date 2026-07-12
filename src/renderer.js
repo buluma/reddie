@@ -24,6 +24,44 @@ const statusMap = {
   26: 'todo'
 };
 
+// Theme
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  document.getElementById('theme-toggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('reddie-theme', theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme;
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+function initTheme() {
+  applyTheme(localStorage.getItem('reddie-theme') || 'dark');
+}
+
+// Connection status
+function setConnectionStatus(state, text) {
+  const el = document.getElementById('connection-status');
+  el.classList.remove('connected', 'error');
+  if (state) el.classList.add(state);
+  el.querySelector('.status-text').textContent = text;
+}
+
+async function refreshConnectionStatus() {
+  setConnectionStatus(null, 'Connecting…');
+  try {
+    const result = await window.reddieAPI.checkConnection();
+    if (result && result.ok) {
+      setConnectionStatus('connected', 'Connected');
+    } else {
+      setConnectionStatus('error', (result && result.error) || 'Disconnected');
+    }
+  } catch (err) {
+    setConnectionStatus('error', 'Disconnected');
+  }
+}
+
 // Settings
 function openSettings() {
   document.getElementById('settings-modal').classList.add('show');
@@ -47,10 +85,12 @@ async function saveSettings() {
   
   // Save to main process
   const result = await window.reddieAPI.saveConfig(newConfig);
-  
+
   if (result.error) {
+    setConnectionStatus('error', result.error);
     alert('Error: ' + result.error);
   } else {
+    setConnectionStatus('connected', 'Connected');
     // Save to localStorage as backup
     localStorage.setItem('reddie-config', JSON.stringify(newConfig));
     closeSettings();
@@ -228,8 +268,11 @@ window.saveState = saveState;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.saveSettings = saveSettings;
+window.toggleTheme = toggleTheme;
 
 document.addEventListener('DOMContentLoaded', async () => {
+  initTheme();
+
   // main.js seeds config from .env at startup. Only fall back to the
   // localStorage cache (set by a previous Settings save) if that env
   // config didn't already supply an API key - otherwise a stale cached
@@ -247,5 +290,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   loadState();
   initSortable();
+  await refreshConnectionStatus();
   await loadFromAPI();
 });

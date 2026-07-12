@@ -1,10 +1,34 @@
 :root {
   --primary-color: #6200ee;
+  --column-width: 280px;
+}
+
+:root[data-theme="dark"] {
+  --bg-color: #0b0b12;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --text-color: #e8e8ec;
+  --text-muted: #9a9aa5;
+  --card-bg: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --modal-bg: #16161f;
+  --modal-border: rgba(255, 255, 255, 0.1);
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --input-border: rgba(255, 255, 255, 0.15);
+}
+
+:root[data-theme="light"] {
   --bg-color: transparent;
   --glass-bg: rgba(255, 255, 255, 0.2);
   --glass-border: rgba(255, 255, 255, 0.3);
   --text-color: #333;
-  --column-width: 280px;
+  --text-muted: #666;
+  --card-bg: rgba(255, 255, 255, 0.7);
+  --card-border: rgba(255, 255, 255, 0.5);
+  --modal-bg: #ffffff;
+  --modal-border: #eee;
+  --input-bg: #ffffff;
+  --input-border: #ddd;
 }
 
 * {
@@ -36,18 +60,6 @@ body {
   flex-direction: column;
   height: 100vh;
   padding-top: 40px; /* Leave space for drag handle */
-}
-
-header {
-  padding: 20px 40px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--glass-border);
-}
-
-header h1 {
-  font-size: 24px;
-  font-weight: 300;
 }
 
 .dashboard {
@@ -113,13 +125,13 @@ header h1 {
 }
 
 .task-card {
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--card-bg);
   border-radius: 12px;
   padding: 12px;
   margin-bottom: 12px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
   cursor: grab;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--card-border);
   transition: transform 0.1s, box-shadow 0.2s;
 }
 
@@ -182,9 +194,57 @@ header {
   align-items: center;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 header h1 {
   font-size: 24px;
   font-weight: 300;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #888;
+}
+
+.connection-status.connected .status-dot {
+  background: #2ecc71;
+}
+
+.connection-status.error .status-dot {
+  background: #ff4444;
+}
+
+.theme-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.theme-toggle:hover {
+  opacity: 1;
 }
 
 /* Modal */
@@ -206,7 +266,8 @@ header h1 {
 }
 
 .modal-content {
-  background: white;
+  background: var(--modal-bg);
+  color: var(--text-color);
   border-radius: 12px;
   width: 400px;
   max-width: 90%;
@@ -215,7 +276,7 @@ header h1 {
 
 .modal-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--modal-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -231,7 +292,7 @@ header h1 {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .modal-body {
@@ -247,15 +308,17 @@ header h1 {
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 4px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .form-group input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 14px;
+  background: var(--input-bg);
+  color: var(--text-color);
 }
 
 .form-group input:focus {
@@ -280,6 +343,6 @@ header h1 {
 
 .issue-id {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   margin-right: 8px;
 }
