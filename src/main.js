@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { RedmineClient, buildColumnMapping } = require('./redmine-client');
+const { loadPersistedConfig, persistConfig } = require('./config-store');
 
 // Talks directly to Redmine's own REST API - no Converge or any other
 // intermediary backend required. Anyone can run this against their own
@@ -100,6 +101,16 @@ app.whenReady().then(async () => {
     }
   }
 
+  // .env wins if it supplied a key; otherwise fall back to the encrypted
+  // config from a previous Settings save (see config-store.js).
+  if (!config.redmineApiKey) {
+    const persisted = loadPersistedConfig();
+    if (persisted.redmineApiKey) {
+      config = { ...config, ...persisted };
+      rebuildClient();
+    }
+  }
+
   if (config.redmineApiKey) {
     await connect();
   }
@@ -125,6 +136,7 @@ ipcMain.handle('get-config', async () => {
 ipcMain.handle('save-config', async (event, newConfig) => {
   config = { ...config, ...newConfig };
   rebuildClient();
+  persistConfig(config);
   console.log('Config saved:', { ...config, redmineApiKey: config.redmineApiKey ? '(set)' : '' });
   return await connect();
 });
