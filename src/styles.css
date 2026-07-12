@@ -1,5 +1,5 @@
 :root {
-  --primary-color: #6200ee;
+  --primary-color: #b32024;
   --column-width: 280px;
 }
 
@@ -271,6 +271,33 @@ header h1 {
   border-color: var(--primary-color);
   width: 220px;
   transition: width 0.2s;
+}
+
+.new-ticket-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px 6px 10px;
+  border: 1px solid var(--primary-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.new-ticket-btn:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+.new-ticket-icon {
+  font-size: 16px;
+  line-height: 1;
 }
 
 .theme-toggle {
