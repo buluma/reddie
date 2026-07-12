@@ -202,7 +202,7 @@ class RedmineClient {
 
   async getIssueDetail(issueId) {
     const [issueResult, timeEntriesResult] = await Promise.all([
-      this.get(`/issues/${issueId}.json?include=journals,attachments,relations,allowed_statuses`),
+      this.get(`/issues/${issueId}.json?include=journals,attachments,relations,allowed_statuses,children`),
       this.get(`/time_entries.json?issue_id=${issueId}&limit=100&sort=spent_on:desc`).catch(() => ({
         time_entries: [],
       })),

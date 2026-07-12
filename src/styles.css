@@ -653,6 +653,29 @@ header h1 {
   border-top: none;
 }
 
+.subtask-row, .custom-field-row {
+  font-size: 13px;
+  padding: 6px 0;
+  border-top: 1px solid var(--modal-border);
+}
+
+.subtask-row:first-child, .custom-field-row:first-child {
+  border-top: none;
+}
+
+.custom-field-row strong {
+  margin-right: 6px;
+}
+
+.issue-id-link {
+  color: var(--primary-color);
+  cursor: pointer;
+}
+
+.issue-id-link:hover {
+  text-decoration: underline;
+}
+
 .details-btn {
   background: none;
   border: 1px solid var(--card-border);

@@ -181,6 +181,22 @@ function renderIssueDetail(issue, timeEntries, members) {
     .map(a => `<div class="attachment-row">📎 ${escapeHtml(a.filename)} <span class="journal-date">(${Math.round((a.filesize || 0) / 1024)} KB)</span></div>`)
     .join('') || '<div class="detail-empty">No attachments.</div>';
 
+  // issue.parent is always present by default when set; issue.children
+  // needs the explicit ?include=children (getIssueDetail requests it) -
+  // only rendered if there's actually a relation, no empty section header
+  // for the common case of a standalone ticket.
+  const subtasksHtml = [
+    issue.parent ? `<div class="subtask-row">↑ <span class="issue-id-link" onclick="openIssueDetail('${issue.parent.id}')">#${issue.parent.id}</span></div>` : '',
+    ...(issue.children || []).map(c => `<div class="subtask-row">↳ <span class="issue-id-link" onclick="openIssueDetail('${c.id}')">#${c.id}</span> ${escapeHtml(c.subject)}</div>`),
+  ].join('');
+
+  // Most custom fields are blank on most tickets - only show ones that
+  // actually have a value, same reasoning as the sub-tasks section above.
+  const customFieldsHtml = (issue.custom_fields || [])
+    .filter(f => f.value != null && f.value !== '' && !(Array.isArray(f.value) && f.value.length === 0))
+    .map(f => `<div class="custom-field-row"><strong>${escapeHtml(f.name)}</strong> ${escapeHtml(Array.isArray(f.value) ? f.value.join(', ') : String(f.value))}</div>`)
+    .join('');
+
   // The current priority might be inactive/retired (still a legal value
   // for an existing issue even after an admin disables it going forward)
   // - keep it selectable anyway, same reasoning as the assignee dropdown.
@@ -208,6 +224,8 @@ function renderIssueDetail(issue, timeEntries, members) {
       <h3>Description</h3>
       <div class="detail-description">${issue.description ? escapeHtml(issue.description) : '<span class="detail-empty">No description.</span>'}</div>
     </div>
+    ${subtasksHtml ? `<div class="detail-section"><h3>Related tickets</h3>${subtasksHtml}</div>` : ''}
+    ${customFieldsHtml ? `<div class="detail-section"><h3>Custom fields</h3>${customFieldsHtml}</div>` : ''}
     <div class="detail-section">
       <h3>Time logged${totalHours ? ` — ${totalHours}h total` : ''}</h3>
       ${timeEntriesHtml}
