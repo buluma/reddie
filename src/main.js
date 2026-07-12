@@ -40,6 +40,7 @@ let config = {
 let client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
 let columnMapping = { statusIdToColumn: {}, columnToStatusId: {} };
 let activities = [];
+let priorities = [];
 let lastStatuses = [];
 let currentUserId = null;
 
@@ -52,14 +53,16 @@ async function connect() {
     return { error: 'No API key configured' };
   }
   try {
-    const [user, statuses, activityList] = await Promise.all([
+    const [user, statuses, activityList, priorityList] = await Promise.all([
       client.getCurrentUser(),
       client.listStatuses(),
       client.listActivities(),
+      client.listPriorities(),
     ]);
     lastStatuses = statuses;
     columnMapping = buildColumnMapping(statuses, config.columnOverrides);
     activities = activityList;
+    priorities = priorityList;
     currentUserId = user && user.id;
     return { ok: true, user };
   } catch (err) {
@@ -277,6 +280,19 @@ ipcMain.handle('add-comment', async (event, { issueId, comment }) => {
 
 ipcMain.handle('fetch-activities', async () => {
   return { items: activities };
+});
+
+ipcMain.handle('fetch-priorities', async () => {
+  return { items: priorities };
+});
+
+ipcMain.handle('update-priority', async (event, { issueId, priorityId }) => {
+  try {
+    await client.updatePriority(issueId, priorityId);
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
 });
 
 ipcMain.handle('add-timelog', async (event, { issueId, hours, activityId, comment, spentOn }) => {

@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   createIssue: (data) => ipcRenderer.invoke('create-issue', data),
   addComment: (issueId, comment) => ipcRenderer.invoke('add-comment', { issueId, comment }),
   fetchActivities: () => ipcRenderer.invoke('fetch-activities'),
+  fetchPriorities: () => ipcRenderer.invoke('fetch-priorities'),
+  updatePriority: (issueId, priorityId) => ipcRenderer.invoke('update-priority', { issueId, priorityId }),
   addTimelog: (issueId, entry) => ipcRenderer.invoke('add-timelog', { issueId, ...entry }),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   installUpdate: () => ipcRenderer.invoke('install-update'),

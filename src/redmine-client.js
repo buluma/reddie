@@ -95,6 +95,15 @@ class RedmineClient {
     return (result.time_entry_activities || []).filter((a) => a.active !== false);
   }
 
+  async listPriorities() {
+    const result = await this.get('/enumerations/issue_priorities.json');
+    return (result.issue_priorities || []).filter((p) => p.active !== false);
+  }
+
+  updatePriority(issueId, priorityId) {
+    return this.put(`/issues/${issueId}.json`, { issue: { priority_id: priorityId } });
+  }
+
   async listProjects() {
     const result = await this.get('/projects.json?limit=100');
     return result.projects || [];

@@ -18,6 +18,15 @@ async function loadActivities() {
   activities = (result && result.items) || [];
 }
 
+// Issue priorities for the detail view's priority dropdown - fetched once,
+// same lifecycle as activities above.
+let priorities = [];
+
+async function loadPriorities() {
+  const result = await window.reddieAPI.fetchPriorities();
+  priorities = (result && result.items) || [];
+}
+
 // Theme
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -158,15 +167,26 @@ function renderIssueDetail(issue, timeEntries, members) {
     .map(a => `<div class="attachment-row">📎 ${escapeHtml(a.filename)} <span class="journal-date">(${Math.round((a.filesize || 0) / 1024)} KB)</span></div>`)
     .join('') || '<div class="detail-empty">No attachments.</div>';
 
+  // The current priority might be inactive/retired (still a legal value
+  // for an existing issue even after an admin disables it going forward)
+  // - keep it selectable anyway, same reasoning as the assignee dropdown.
+  const priorityOptions = [...priorities];
+  if (issue.priority && !priorityOptions.some(p => p.id === issue.priority.id)) {
+    priorityOptions.unshift(issue.priority);
+  }
+  const priorityOptionsHtml = priorityOptions
+    .map(p => `<option value="${p.id}" ${issue.priority && issue.priority.id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`)
+    .join('');
+
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-badges">
       <span class="detail-badge">${escapeHtml((issue.status && issue.status.name) || '—')}</span>
-      ${issue.priority ? `<span class="detail-badge">${escapeHtml(issue.priority.name)}</span>` : ''}
       ${issue.tracker ? `<span class="detail-badge">${escapeHtml(issue.tracker.name)}</span>` : ''}
     </div>
     <div class="detail-meta">
       <div><strong>Project</strong> ${escapeHtml((issue.project && issue.project.name) || '—')}</div>
       <div><strong>Assignee</strong> <select id="assignee-select" class="assignee-select" onchange="changeAssignee(this.value)">${assigneeOptionsHtml}</select></div>
+      <div><strong>Priority</strong> <select id="priority-select" class="assignee-select" onchange="changePriority(this.value)">${priorityOptionsHtml}</select></div>
       <div><strong>Author</strong> ${escapeHtml((issue.author && issue.author.name) || '—')}</div>
       <div><strong>Due</strong> ${formatDate(issue.due_date)}</div>
     </div>
@@ -239,6 +259,25 @@ async function changeAssignee(value) {
     showToast(`Couldn't update assignee: ${err.message || err}`, 'error');
     // Re-load the detail view so the dropdown reflects the real current
     // assignee rather than whatever the failed selection left it showing.
+    await openIssueDetail(currentDetailIssueId);
+  } finally {
+    if (select) select.disabled = false;
+  }
+}
+
+async function changePriority(value) {
+  if (!currentDetailIssueId) return;
+  const select = document.getElementById('priority-select');
+  const priorityId = Number(value);
+  select.disabled = true;
+  try {
+    const result = await window.reddieAPI.updatePriority(currentDetailIssueId, priorityId);
+    if (result && result.error) {
+      throw new Error(result.error);
+    }
+    showToast('Priority updated', 'success');
+  } catch (err) {
+    showToast(`Couldn't update priority: ${err.message || err}`, 'error');
     await openIssueDetail(currentDetailIssueId);
   } finally {
     if (select) select.disabled = false;
@@ -496,6 +535,7 @@ async function saveSettings() {
     // Reload issues (column mapping/activities may differ on a different Redmine instance)
     await loadColumnMapping();
     await loadActivities();
+    await loadPriorities();
     await loadFromAPI();
   }
 }
@@ -750,6 +790,7 @@ window.closeIssueDetail = closeIssueDetail;
 window.postComment = postComment;
 window.submitTimelog = submitTimelog;
 window.changeAssignee = changeAssignee;
+window.changePriority = changePriority;
 window.openNewTicket = openNewTicket;
 window.closeNewTicket = closeNewTicket;
 window.loadNewTicketTrackers = loadNewTicketTrackers;
