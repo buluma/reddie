@@ -35,7 +35,7 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 
 - Cross-platform builds: macOS (`.dmg`), Windows (`.exe`/NSIS), Linux (`.AppImage`/`.deb`)
 - GitHub Actions CI: 3-platform matrix build on tag push, auto-publishes a real GitHub Release once every platform succeeds
-- In-app auto-updater (`electron-updater`) — checks on launch (packaged builds only), downloads in the background, installs on next quit; manual "Check for Updates…" in Settings
+- In-app update checker (`electron-updater`) — checks on launch (packaged builds only) and via a manual "Check for Updates…" in Settings, notifies with the new version and a link to GitHub Releases. **Does not auto-download/auto-install** — macOS's Squirrel.Mac refuses to apply an update without a stable code-signing identity, which ad-hoc/unsigned builds don't have (needs a paid Apple Developer account, same blocker as notarization below). Grab new versions from GitHub Releases manually.
 
 ## Not yet supported
 

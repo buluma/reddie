@@ -63,16 +63,18 @@ function initUpdateListener() {
   window.reddieAPI.onUpdateStatus((data) => {
     switch (data.status) {
       case 'available':
-        showToast(`Update v${data.version} found - downloading…`, 'info');
-        break;
-      case 'downloaded':
-        showToast(`Update v${data.version} ready - installs on next restart`, 'success');
+        // Auto-install isn't possible on an unsigned/ad-hoc-signed build
+        // (macOS refuses to apply an update without a matching stable
+        // code-signing identity, which needs a paid Apple Developer
+        // account) - point at the manual download instead of implying
+        // it'll just handle itself.
+        showToast(`Update v${data.version} available - download it from github.com/buluma/reddie/releases`, 'info');
         break;
       case 'error':
-        showToast(`Update check failed: ${data.message}`, 'error');
+        showToast(`Update error: ${data.message}`, 'error');
         break;
-      // 'checking', 'not-available' and per-tick 'downloading' progress are
-      // routine background noise - not worth a toast.
+      // 'checking' and 'not-available' are routine background noise - not
+      // worth a toast.
     }
   });
 }

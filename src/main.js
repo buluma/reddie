@@ -6,11 +6,15 @@ const { RedmineClient, buildColumnMapping } = require('./redmine-client');
 const { loadPersistedConfig, persistConfig } = require('./config-store');
 const { autoUpdater } = require('electron-updater');
 
-// Downloads silently in the background; the user is only interrupted once
-// there's actually something to install, and it's applied on the next
-// natural quit rather than forcing a restart mid-session.
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+// Auto-download/install is off on purpose: macOS's Squirrel.Mac (the
+// updater apply step electron-updater uses under the hood) requires the
+// downloaded build to carry the same stable code-signing identity as the
+// running app before it'll install it. Both builds are ad-hoc signed (no
+// paid Apple Developer cert - same blocker as notarization elsewhere in
+// this project), so that verification always fails and the app never
+// finishes applying an update on its own. Detect-and-notify instead;
+// the user grabs the new build from GitHub Releases manually.
+autoUpdater.autoDownload = false;
 
 function sendUpdateStatus(status, extra = {}) {
   console.log('Update status:', status, extra);
@@ -23,8 +27,9 @@ autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'));
 autoUpdater.on('update-available', (info) => sendUpdateStatus('available', { version: info.version }));
 autoUpdater.on('update-not-available', () => sendUpdateStatus('not-available'));
 autoUpdater.on('error', (err) => sendUpdateStatus('error', { message: err.message }));
-autoUpdater.on('download-progress', (progress) => sendUpdateStatus('downloading', { percent: Math.round(progress.percent) }));
-autoUpdater.on('update-downloaded', (info) => sendUpdateStatus('downloaded', { version: info.version }));
+// No 'download-progress'/'update-downloaded' listeners - those only fire
+// if something calls downloadUpdate(), which nothing here does now that
+// autoDownload is off.
 
 // Talks directly to Redmine's own REST API - no Converge or any other
 // intermediary backend required. Anyone can run this against their own
