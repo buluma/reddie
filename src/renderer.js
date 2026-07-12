@@ -230,14 +230,21 @@ window.closeSettings = closeSettings;
 window.saveSettings = saveSettings;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Try to load API config from localStorage first
-  const savedConfig = localStorage.getItem('reddie-config');
-  if (savedConfig) {
-    try {
-      await window.reddieAPI.saveConfig(JSON.parse(savedConfig));
-    } catch(e) {}
+  // main.js seeds config from .env at startup. Only fall back to the
+  // localStorage cache (set by a previous Settings save) if that env
+  // config didn't already supply an API key - otherwise a stale cached
+  // key from an earlier session silently overrides a fresh .env value
+  // on every launch.
+  const currentConfig = await window.reddieAPI.getConfig();
+  if (!currentConfig.redmineApiKey) {
+    const savedConfig = localStorage.getItem('reddie-config');
+    if (savedConfig) {
+      try {
+        await window.reddieAPI.saveConfig(JSON.parse(savedConfig));
+      } catch(e) {}
+    }
   }
-  
+
   loadState();
   initSortable();
   await loadFromAPI();

@@ -1,17 +1,19 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const http = require('http');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-// Default config
-const DEFAULT_API_BASE = 'http://100.110.136.4:3001';
-const DEFAULT_REDMINE_BASE_URL = 'https://redmine.nasctech.com';
+// Default config - overridden by .env if present, then by Settings at runtime
+const DEFAULT_API_BASE = process.env.API_BASE || 'http://100.110.136.4:3001';
+const DEFAULT_REDMINE_BASE_URL = process.env.REDMINE_BASE_URL || 'https://redmine.nasctech.com';
+const DEFAULT_REDMINE_API_KEY = process.env.REDMINE_API_KEY || '';
 
 // Session cookie storage
 let sessionCookie = '';
 let config = {
   apiBase: DEFAULT_API_BASE,
   redmineBaseUrl: DEFAULT_REDMINE_BASE_URL,
-  redmineApiKey: ''
+  redmineApiKey: DEFAULT_REDMINE_API_KEY
 };
 
 function apiRequest(endpoint, method = 'GET', body = null) {

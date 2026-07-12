@@ -12,6 +12,7 @@
     "electron-builder": "^26.8.1"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "sortablejs": "^1.15.7"
   }
 }
