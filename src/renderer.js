@@ -8,6 +8,15 @@ async function loadColumnMapping() {
   columnMapping = await window.reddieAPI.getColumnMapping();
 }
 
+// Time-entry activities for the time-log form - fetched once, reused
+// across every detail view opened this session.
+let activities = [];
+
+async function loadActivities() {
+  const result = await window.reddieAPI.fetchActivities();
+  activities = (result && result.items) || [];
+}
+
 // Theme
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -126,6 +135,14 @@ function renderIssueDetail(issue, timeEntries) {
     <div class="detail-section">
       <h3>Time logged${totalHours ? ` — ${totalHours}h total` : ''}</h3>
       ${timeEntriesHtml}
+      <div class="timelog-form">
+        <input type="number" id="timelog-hours" class="timelog-hours" placeholder="Hours" min="0.01" max="24" step="0.25">
+        <select id="timelog-activity" class="timelog-activity">
+          ${activities.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
+        </select>
+        <input type="text" id="timelog-comment" class="timelog-comment" placeholder="Comment (optional)">
+        <button id="timelog-submit-btn" class="timelog-submit-btn" onclick="submitTimelog()">Log time</button>
+      </div>
     </div>
     <div class="detail-section">
       <h3>Attachments</h3>
@@ -191,6 +208,50 @@ async function postComment() {
   }
 }
 
+async function submitTimelog() {
+  if (!currentDetailIssueId) return;
+  const hoursInput = document.getElementById('timelog-hours');
+  const activitySelect = document.getElementById('timelog-activity');
+  const commentInput = document.getElementById('timelog-comment');
+  const btn = document.getElementById('timelog-submit-btn');
+
+  const hours = parseFloat(hoursInput.value);
+  const activityId = parseInt(activitySelect.value, 10);
+  if (!hours || hours <= 0) {
+    showToast('Enter hours to log', 'error');
+    return;
+  }
+  if (!activityId) {
+    showToast('No activity selected', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Logging…';
+  try {
+    const result = await window.reddieAPI.addTimelog(currentDetailIssueId, {
+      hours,
+      activityId,
+      comment: commentInput.value.trim(),
+    });
+    if (result && result.error) {
+      showToast(`Couldn't log time: ${result.error}`, 'error');
+      return;
+    }
+    showToast('Time logged', 'success');
+    const issueId = currentDetailIssueId;
+    const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
+    if (refreshed && !refreshed.error && refreshed.issue) {
+      renderIssueDetail(refreshed.issue, refreshed.timeEntries);
+    }
+  } catch (err) {
+    showToast(`Couldn't log time: ${err.message || err}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Log time';
+  }
+}
+
 // Settings
 function openSettings() {
   document.getElementById('settings-modal').classList.add('show');
@@ -221,8 +282,9 @@ async function saveSettings() {
     // Save to localStorage as backup
     localStorage.setItem('reddie-config', JSON.stringify(newConfig));
     closeSettings();
-    // Reload issues (column mapping may have changed on a different Redmine instance)
+    // Reload issues (column mapping/activities may differ on a different Redmine instance)
     await loadColumnMapping();
+    await loadActivities();
     await loadFromAPI();
   }
 }
@@ -410,6 +472,7 @@ window.toggleTheme = toggleTheme;
 window.openIssueDetail = openIssueDetail;
 window.closeIssueDetail = closeIssueDetail;
 window.postComment = postComment;
+window.submitTimelog = submitTimelog;
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
@@ -433,5 +496,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   initSortable();
   await refreshConnectionStatus();
   await loadColumnMapping();
+  await loadActivities();
   await loadFromAPI();
 });
