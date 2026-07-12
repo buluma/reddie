@@ -851,6 +851,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await refreshConnectionStatus();
   await loadColumnMapping();
   await loadActivities();
+  await loadPriorities();
   await loadFromAPI();
 
   // Auto-refresh: skip a tick rather than yank the board out from under an
