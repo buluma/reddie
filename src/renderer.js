@@ -40,6 +40,20 @@ function initTheme() {
   applyTheme(localStorage.getItem('reddie-theme') || 'dark');
 }
 
+// Toasts
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
 // Connection status
 function setConnectionStatus(state, text) {
   const el = document.getElementById('connection-status');
@@ -129,12 +143,29 @@ function initSortable() {
         const itemEl = evt.item;
         const newColumn = evt.to.id.replace('-list', '');
         const oldColumn = evt.from.id.replace('-list', '');
-        
+
         if (newColumn !== oldColumn && itemEl.dataset.issueId) {
           const statusId = getStatusId(newColumn);
+          const oldList = evt.from;
+          const oldIndex = evt.oldIndex;
           window.reddieAPI.updateStatus(itemEl.dataset.issueId, statusId)
-            .then(() => saveState())
-            .catch(console.error);
+            .then((result) => {
+              // apiRequest resolves with the parsed body regardless of HTTP
+              // status, so a rejected transition (e.g. 400) lands here too,
+              // not in .catch() - check for an error field explicitly.
+              if (result && result.error) {
+                throw new Error(result.error);
+              }
+              saveState();
+            })
+            .catch((err) => {
+              // revert the card to where it was - the backend didn't apply
+              // the move, so the board shouldn't claim it did
+              const referenceNode = oldList.children[oldIndex] || null;
+              oldList.insertBefore(itemEl, referenceNode);
+              saveState();
+              showToast(`Couldn't update status: ${err.message || err}`, 'error');
+            });
         } else {
           saveState();
         }
