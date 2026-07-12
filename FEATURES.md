@@ -9,10 +9,14 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 - Personal scratch cards (no ticket number) — local-only, `localStorage`, never synced to Redmine, visually distinguished with a "Local" badge
 - Board search/filter, dark/light theme, 60s auto-refresh (paused during an active drag or while the detail view is open)
 - Desktop notification when a ticket's column changes remotely (someone else moved it) or it's reassigned away from you entirely (drops out of `assigned_to_id=me`) — both are diffed against the previous poll, not fired on first load or your own actions
+- Each card always shows its ticket id (`#12345`), not just on hover
+- Deleting a card confirms first — a local scratch card's delete is permanent, there's no backend copy to fall back to
+- A real ticket's card is not text-editable — that only ever changed the display locally and got overwritten by the next refresh anyway; edit the subject from the detail view instead. Local scratch cards stay inline-editable (no detail view exists for them)
 
 ## Ticket detail view
 
 - Full ticket: description, project, author, due date, GitHub-style activity/comment history, time entries
+- **Subject** — click the title to edit, PUTs `subject` on blur (no-op if unchanged)
 - **Assignee** — dropdown of the project's members, PUTs `assigned_to_id`
 - **Priority** — dropdown of the instance's `issue_priorities`, PUTs `priority_id`
 - **Status** — via drag on the board (not the detail view)
