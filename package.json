@@ -16,5 +16,15 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "sortablejs": "^1.15.7"
+  },
+  "build": {
+    "appId": "com.buluma.reddie",
+    "productName": "reddie",
+    "directories": {
+      "buildResources": "build"
+    },
+    "mac": {
+      "icon": "build/icon.icns"
+    }
   }
 }

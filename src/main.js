@@ -61,12 +61,14 @@ async function fetchIssueDetail(issueId) {
 }
 
 let mainWindow;
+const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     titleBarStyle: 'hiddenInset',
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -78,6 +80,12 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // electron-builder bakes the real icon into a packaged build via
+  // build/icon.icns - this is only needed so `npm start` (raw Electron
+  // binary) shows it too, instead of the generic Electron icon.
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(iconPath);
+  }
   createWindow();
 
   if (config.redmineApiKey) {

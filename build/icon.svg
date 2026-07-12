@@ -1,0 +1,38 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b3ffc"/>
+      <stop offset="100%" stop-color="#4b0fb0"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#sheen)"/>
+
+  <!-- Kanban columns -->
+  <g>
+    <!-- Column 1 -->
+    <rect x="207" y="252" width="130" height="530" rx="26" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.28" stroke-width="4"/>
+    <rect x="222" y="280" width="100" height="64" rx="14" fill="#ffffff" fill-opacity="0.96"/>
+    <rect x="222" y="358" width="100" height="64" rx="14" fill="#ffffff" fill-opacity="0.96"/>
+
+    <!-- Column 2 -->
+    <rect x="367" y="252" width="130" height="530" rx="26" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.28" stroke-width="4"/>
+    <rect x="382" y="280" width="100" height="64" rx="14" fill="#ffffff" fill-opacity="0.96"/>
+
+    <!-- Column 3 -->
+    <rect x="527" y="252" width="130" height="530" rx="26" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.28" stroke-width="4"/>
+    <rect x="542" y="280" width="100" height="64" rx="14" fill="#ffffff" fill-opacity="0.96"/>
+    <rect x="542" y="358" width="100" height="64" rx="14" fill="#ffffff" fill-opacity="0.96"/>
+    <rect x="542" y="436" width="100" height="64" rx="14" fill="#ffffff" fill-opacity="0.96"/>
+
+    <!-- Column 4 -->
+    <rect x="687" y="252" width="130" height="530" rx="26" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.28" stroke-width="4"/>
+    <rect x="702" y="280" width="100" height="64" rx="14" fill="#ffffff" fill-opacity="0.96"/>
+    <rect x="702" y="358" width="100" height="64" rx="14" fill="#22c55e" fill-opacity="0.95"/>
+  </g>
+</svg>
