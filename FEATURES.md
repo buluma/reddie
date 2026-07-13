@@ -21,7 +21,7 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 - **Priority** — dropdown of the instance's `issue_priorities`, PUTs `priority_id`
 - **Status** — via drag on the board (not the detail view)
 - **Comments** — post directly from the detail view
-- **Time tracking** — log hours against any of the instance's active time-entry activities
+- **Time tracking** — log hours manually against any of the instance's active time-entry activities, or run a **live timer**: Start/Pause/Resume/Reset/Cancel/Complete on the ticket you're working, one active timer app-wide (starting a different ticket's timer prompts you to discard the current one first). Complete submits the elapsed hours as a real time entry. The timer survives closing the window to the tray and shows live in the tray popover (ticket, elapsed, running/paused) — it does not survive a full app quit.
 - **Attachments** — view existing ones, upload new files (Redmine's two-step upload-then-attach flow)
 - **Sub-tasks** — parent (if any) and children (if any) shown as clickable links that jump straight to that ticket's own detail view; read-only, no assigning/creating a sub-task relationship from reddie
 - **Custom fields** — non-empty ones shown read-only (most fields are blank on most tickets)
