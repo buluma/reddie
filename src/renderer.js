@@ -168,9 +168,21 @@ function renderMarkdown(text) {
 // src> can't send that header, so the main process fetches the bytes
 // (fetch-image already checks the URL resolves to the configured instance
 // before attaching the key - see main.js) and this swaps in a data URL.
-// Cached in-memory by URL for the session so re-opening the same issue
-// doesn't refetch images it already has.
+// Cached in-memory by URL so re-opening the same issue doesn't refetch
+// images it already has. Bounded LRU: each entry is a full base64 data URL
+// (~1.33x the raw image bytes), so an unbounded cache would grow without
+// limit over a long session. Oldest-inserted entry is evicted past the cap;
+// re-inserting a key refreshes its recency (delete-then-set).
+const IMAGE_CACHE_MAX = 100;
 const imageDataUrlCache = new Map();
+
+function cacheImageDataUrl(src, dataUrl) {
+  if (imageDataUrlCache.has(src)) imageDataUrlCache.delete(src);
+  imageDataUrlCache.set(src, dataUrl);
+  if (imageDataUrlCache.size > IMAGE_CACHE_MAX) {
+    imageDataUrlCache.delete(imageDataUrlCache.keys().next().value);
+  }
+}
 
 async function hydrateAuthenticatedImages(container) {
   const images = Array.from(container.querySelectorAll('img[src]'));
@@ -178,12 +190,14 @@ async function hydrateAuthenticatedImages(container) {
     const src = img.getAttribute('src');
     if (!src || src.startsWith('data:')) return;
     if (imageDataUrlCache.has(src)) {
-      img.src = imageDataUrlCache.get(src);
+      const cached = imageDataUrlCache.get(src);
+      cacheImageDataUrl(src, cached); // refresh LRU recency
+      img.src = cached;
       return;
     }
     const result = await window.reddieAPI.fetchImage(src);
     if (result && result.ok) {
-      imageDataUrlCache.set(src, result.dataUrl);
+      cacheImageDataUrl(src, result.dataUrl);
       img.src = result.dataUrl;
     }
     // Not the configured instance (or the fetch failed) - leave the <img>
@@ -902,25 +916,11 @@ function loadState() {
 // as a remote move - notifyChanges stays off).
 let knownIssueColumns = {};
 
-// Classifies a set of unfinished issues into a single tray urgency level,
-// by priority name substring - same heuristic works across instances since
-// it doesn't depend on a specific priority list, just common naming
-// (Urgent/Immediate, High, Medium/Normal). Pure/pushed-to-main rather than
-// computed in main.js itself, since the renderer already has the fetched
-// issue list and priority data - see updateTrayAppearance() in main.js.
-function classifyTrayUrgency(unfinishedIssues) {
-  if (unfinishedIssues.some(i => /urgent|high|immediate/i.test((i.priority && i.priority.name) || ''))) return 'high';
-  if (unfinishedIssues.some(i => /medium|normal/i.test((i.priority && i.priority.name) || ''))) return 'medium';
-  return 'low';
-}
-
-const URGENCY_RANK = { high: 0, medium: 1, low: 2 };
-function issueUrgencyRank(issue) {
-  const name = (issue.priority && issue.priority.name) || '';
-  if (/urgent|high|immediate/i.test(name)) return URGENCY_RANK.high;
-  if (/medium|normal/i.test(name)) return URGENCY_RANK.medium;
-  return URGENCY_RANK.low;
-}
+// Tray urgency classification lives in the pure, unit-tested reddieUrgency
+// module (src/urgency.js, loaded as a <script> before this file) rather than
+// inline here - it's the renderer's job to feed it the fetched issue list
+// and the ordered `priorities` scale, since main.js has neither. See
+// updateTrayAppearance() in main.js for how the result paints the tray.
 
 // `apiState` is the same per-column card arrays loadFromAPI just built for
 // the board itself - reused here rather than recomputed, so the popover's
@@ -930,7 +930,7 @@ function updateTrayStatus(unfinishedIssues, apiState) {
   // actually worth interrupting your day for - not just whatever the API
   // happened to return first.
   const topIssues = [...unfinishedIssues]
-    .sort((a, b) => issueUrgencyRank(a) - issueUrgencyRank(b))
+    .sort((a, b) => reddieUrgency.issueUrgencyRank(a, priorities) - reddieUrgency.issueUrgencyRank(b, priorities))
     .slice(0, 5)
     .map(i => ({ id: i.id, subject: i.subject || `Issue #${i.id}` }));
 
@@ -939,7 +939,7 @@ function updateTrayStatus(unfinishedIssues, apiState) {
 
   window.reddieAPI.updateTrayStatus({
     count: unfinishedIssues.length,
-    urgency: classifyTrayUrgency(unfinishedIssues),
+    urgency: reddieUrgency.classifyTrayUrgency(unfinishedIssues, priorities),
     issues: topIssues,
     columnCounts,
     connected: isConnected,
@@ -1002,9 +1002,13 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
     // Tray/popover only reflects "what's on my plate" (assigned mode) -
     // authored-but-reassigned tickets aren't work waiting on you, and
     // showing their columns there would be a different board's data
-    // wearing this one's chrome.
-    const unfinished = boardMode === 'assigned' ? issues.filter(i => getColumnFromStatus(i.status) !== 'done') : [];
-    updateTrayStatus(unfinished, boardMode === 'assigned' ? apiState : {});
+    // wearing this one's chrome. While viewing the authored board, leave
+    // the tray on its last assigned snapshot rather than zeroing it out -
+    // an unrelated view toggle shouldn't clear the pending-work badge.
+    if (boardMode === 'assigned') {
+      const unfinished = issues.filter(i => getColumnFromStatus(i.status) !== 'done');
+      updateTrayStatus(unfinished, apiState);
+    }
 
     // Merge with existing state instead of overwriting it: keep any
     // manually-added local card (no issueId) exactly where it was, and

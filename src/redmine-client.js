@@ -1,6 +1,12 @@
 const http = require('http');
 const https = require('https');
 
+// Cap on how long a single request may wait with no socket activity before
+// it's abandoned. Node's http has no default timeout, so a dead host, a
+// dropped VPN, or a stalled TLS handshake would otherwise leave the promise
+// pending forever - the board spinner spins with no error path and no retry.
+const REQUEST_TIMEOUT_MS = 30000;
+
 // Thin direct client for the real Redmine REST API - no Converge/any
 // intermediary backend required. Every reddie install just needs a
 // Redmine base URL + a personal API key (Settings, or REDMINE_BASE_URL/
@@ -81,6 +87,12 @@ function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = fal
     );
 
     req.on('error', reject);
+    // 'timeout' fires on socket inactivity but does NOT abort the request on
+    // its own - destroy() does, which then surfaces via the 'error' handler
+    // above (or, if the socket never connected, ends the promise here).
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy(new Error(`Redmine request timed out after ${REQUEST_TIMEOUT_MS}ms`));
+    });
     if (payload) req.write(payload);
     req.end();
   });
@@ -324,4 +336,19 @@ function buildColumnMapping(statuses, overrides = {}) {
   return { statusIdToColumn, columnToStatusId };
 }
 
-module.exports = { RedmineClient, buildColumnMapping };
+// Resolves an embedded image URL (absolute or relative) against the
+// configured Redmine base URL and returns the path to fetch *only if* it
+// stays on that same origin - otherwise null. This is the guard that stops
+// the X-Redmine-API-Key header being attached to a request bound for some
+// other host: a ticket description can embed an <img> pointing anywhere
+// (pasted from elsewhere), and fetchBinary always sends the key. Pure and
+// exported so the leak-prevention rule is unit-testable rather than only
+// living inside main.js's IPC handler.
+function sameInstanceImagePath(rawUrl, baseUrl) {
+  const resolved = new URL(rawUrl, baseUrl);
+  const configuredOrigin = new URL(baseUrl).origin;
+  if (resolved.origin !== configuredOrigin) return null;
+  return resolved.pathname + resolved.search;
+}
+
+module.exports = { RedmineClient, buildColumnMapping, sameInstanceImagePath };

@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, scr
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-const { RedmineClient, buildColumnMapping } = require('./redmine-client');
+const { RedmineClient, buildColumnMapping, sameInstanceImagePath } = require('./redmine-client');
 const { loadPersistedConfig, persistConfig } = require('./config-store');
 const { autoUpdater } = require('electron-updater');
 
@@ -371,6 +371,24 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
+  // Rendered Markdown (descriptions/comments) now emits live <a> links, and
+  // marked autolinks bare URLs too. A plain in-frame click on one would
+  // navigate this window away from index.html/renderer.js, destroying the
+  // whole app UI until relaunch. Keep the renderer pinned to its own file://
+  // and hand any http(s) link to the OS browser instead.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== mainWindow.webContents.getURL()) {
+      event.preventDefault();
+      if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    }
+  });
+  // target=_blank / window.open links (same source: rendered ticket text)
+  // never spawn an in-app window - external ones go to the OS browser.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
   // With a tray present, closing the window is "hide", not "quit" - on
   // every platform, not just macOS's usual convention, since the tray now
   // gives Windows/Linux users the same way back in. The Quit menu item
@@ -427,9 +445,17 @@ app.whenReady().then(async () => {
     }, 5000);
   }
 
+  // Can't gate on getAllWindows().length here: the tray popover is a
+  // persistent (hidden) BrowserWindow, so the count is never 0. Closing the
+  // main window only hides it (see its 'close' handler), so a dock click
+  // must re-show that hidden window - or recreate it if it was genuinely
+  // destroyed - rather than doing nothing because "a window still exists".
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
       createWindow();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
     }
   });
 });
@@ -708,12 +734,11 @@ ipcMain.on('tray-popover-resize', (event, contentHeight) => {
 // must never attach the API key to a request going somewhere else.
 ipcMain.handle('fetch-image', async (event, url) => {
   try {
-    const resolved = new URL(url, config.redmineBaseUrl);
-    const configuredOrigin = new URL(config.redmineBaseUrl).origin;
-    if (resolved.origin !== configuredOrigin) {
+    const fetchPath = sameInstanceImagePath(url, config.redmineBaseUrl);
+    if (fetchPath === null) {
       return { error: 'Image is not on the configured Redmine instance' };
     }
-    const { buffer, contentType } = await client.fetchBinary(resolved.pathname + resolved.search);
+    const { buffer, contentType } = await client.fetchBinary(fetchPath);
     return { ok: true, dataUrl: `data:${contentType};base64,${buffer.toString('base64')}` };
   } catch (err) {
     return { error: err.message };
