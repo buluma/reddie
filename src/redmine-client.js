@@ -20,7 +20,7 @@ const REQUEST_TIMEOUT_MS = 30000;
 // response as a Buffer and resolves { buffer, contentType } instead of
 // JSON-parsing it, since JSON.parse on binary image data would fail (or
 // worse, silently mangle it via the string coercion `data += chunk` does).
-function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = false, contentType, binary = false } = {}) {
+function requestOnce(baseUrl, apiKey, path, method = 'GET', body = null, { raw = false, contentType, binary = false } = {}) {
   return new Promise((resolve, reject) => {
     let uri;
     try {
@@ -56,7 +56,8 @@ function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = fal
             if (status >= 200 && status < 300) {
               resolve({ buffer: Buffer.concat(chunks), contentType: res.headers['content-type'] || 'application/octet-stream' });
             } else {
-              reject(new Error(`Redmine request failed (${status})`));
+              // statusCode lets withRetry tell a transient 5xx from a 4xx.
+              reject(Object.assign(new Error(`Redmine request failed (${status})`), { statusCode: status }));
             }
           });
           return;
@@ -80,7 +81,8 @@ function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = fal
               (parsed && parsed.errors && parsed.errors.join(', ')) ||
               (parsed && parsed.error) ||
               `Redmine request failed (${status})`;
-            reject(new Error(message));
+            // statusCode lets withRetry tell a transient 5xx from a 4xx.
+            reject(Object.assign(new Error(message), { statusCode: status }));
           }
         });
       },
@@ -96,6 +98,44 @@ function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = fal
     if (payload) req.write(payload);
     req.end();
   });
+}
+
+// How many times to retry a failed GET, and the base backoff between tries.
+const MAX_GET_RETRIES = 2;
+const RETRY_BACKOFF_MS = 300;
+
+// Whether a failed request should be retried. GET is the only idempotent
+// method here, so writes are never retried - a blind PUT/POST retry could
+// double-post a comment or time entry. A missing statusCode means the request
+// never got an HTTP response (network error / timeout), which is exactly the
+// transient case worth retrying; a present statusCode is only transient for
+// 5xx (a 4xx like 422/404/403 is a client error that won't fix itself).
+function isRetriable(method, error) {
+  if (method !== 'GET') return false;
+  const status = error && error.statusCode;
+  if (!status) return true;
+  return status >= 500;
+}
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Runs `attempt` (a function returning a Promise), retrying transient GET
+// failures with a linear backoff. Non-retriable failures reject immediately.
+async function withRetry(attempt, { method = 'GET', retries = MAX_GET_RETRIES, backoffMs = RETRY_BACKOFF_MS } = {}) {
+  for (let tries = 0; ; tries += 1) {
+    try {
+      return await attempt();
+    } catch (err) {
+      if (tries >= retries || !isRetriable(method, err)) throw err;
+      await delay(backoffMs * (tries + 1));
+    }
+  }
+}
+
+// Public entry point: same signature as requestOnce, but wraps it so a
+// transient GET failure is retried before it ever reaches a caller.
+function request(baseUrl, apiKey, path, method = 'GET', body = null, options = {}) {
+  return withRetry(() => requestOnce(baseUrl, apiKey, path, method, body, options), { method });
 }
 
 // Redmine caps `limit` at 100 per page and returns `total_count`, so any list
@@ -391,4 +431,4 @@ function sameInstanceImagePath(rawUrl, baseUrl) {
   return resolved.pathname + resolved.search;
 }
 
-module.exports = { RedmineClient, buildColumnMapping, sameInstanceImagePath, collectAllPages };
+module.exports = { RedmineClient, buildColumnMapping, sameInstanceImagePath, collectAllPages, isRetriable, withRetry };
