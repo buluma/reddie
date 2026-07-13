@@ -47,11 +47,16 @@ function loadPersistedConfig() {
     // from Settings > Column Mapping, layered over the automatic
     // classification in redmine-client.js. Not sensitive, stored plain.
     columnOverrides: raw.columnOverrides || {},
+    // 'auto' | 'markdown' | 'textile' - how to render bodies (see
+    // text-format.js). Not sensitive, stored plain. Defaults to 'auto' so a
+    // spread merge in main.js never overwrites the default with undefined.
+    textFormat: raw.textFormat || 'auto',
   };
 }
 
-function persistConfig({ redmineBaseUrl, redmineApiKey, columnOverrides }) {
+function persistConfig({ redmineBaseUrl, redmineApiKey, columnOverrides, textFormat }) {
   const out = { redmineBaseUrl, columnOverrides: columnOverrides || {} };
+  if (textFormat) out.textFormat = textFormat;
   if (redmineApiKey) {
     if (safeStorage.isEncryptionAvailable()) {
       out.redmineApiKeyEncrypted = safeStorage.encryptString(redmineApiKey).toString('base64');

@@ -10,9 +10,12 @@
 // Textile form, which `marked` otherwise leaves as literal text:
 //   - Markdown: ![alt](filename.png)
 //   - Textile:  !filename.png!
-// Each is rewritten to a Markdown image pointing at the attachment's absolute
-// content_url, which the existing hydrateAuthenticatedImages/fetch-image
-// same-origin auth path then loads with the API key.
+// Each has only its *target* rewritten to the attachment's absolute
+// content_url, keeping its original delimiter - Markdown stays Markdown,
+// Textile stays Textile - so whichever renderer (marked / textile-js) parses
+// the body handles its own native image syntax. The existing
+// hydrateAuthenticatedImages/fetch-image same-origin auth path then loads the
+// content_url with the API key.
 //
 // Only references whose target matches a real IMAGE attachment are touched,
 // so unrelated text like `!important!` (or a `![x](y)` pointing elsewhere) is
@@ -42,10 +45,11 @@
 
     // Textile !target! - target can't contain whitespace, `!`, or `|`. Only
     // rewritten when it names a real image attachment, so ordinary `!word!`
-    // emphasis-style text is untouched.
+    // emphasis-style text is untouched. The `!...!` delimiter is preserved so
+    // the Textile renderer still sees an image.
     out = out.replace(/!([^!\s|]+)!/g, (match, target) => {
       const url = byName.get(target);
-      return url ? `![](${url})` : match;
+      return url ? `!${url}!` : match;
     });
 
     return out;
