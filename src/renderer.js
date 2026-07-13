@@ -157,9 +157,14 @@ function escapeHtml(str) {
 // Textile, this renders the raw source close to as-is (Textile markup
 // mostly looks like plain text to a Markdown parser), just without any
 // formatting - not a regression from the previous plain-escaped display.
-function renderMarkdown(text) {
+// `attachments` (the issue's attachment list) lets inline image references in
+// the body - Markdown `![](name)` or Redmine's Textile `!name!` - be rewritten
+// to the real attachment content_url before parsing, so they actually render
+// instead of showing as a missing image / literal text. See inline-images.js.
+function renderMarkdown(text, attachments) {
   if (!text) return '';
-  const html = marked.parse(text, { breaks: true });
+  const resolved = reddieInlineImages.resolveInlineAttachmentImages(text, attachments);
+  const html = marked.parse(resolved, { breaks: true });
   return DOMPurify.sanitize(html);
 }
 
@@ -242,7 +247,7 @@ function renderIssueDetail(issue, timeEntries, members) {
           <strong>${escapeHtml((j.user && j.user.name) || 'Unknown')}</strong>
           <span class="journal-date">${formatDateTime(j.created_on)}</span>
         </div>
-        <div class="journal-notes markdown-body">${renderMarkdown(j.notes)}</div>
+        <div class="journal-notes markdown-body">${renderMarkdown(j.notes, issue.attachments)}</div>
       </div>
     `).join('') || '<div class="detail-empty">No comments yet.</div>';
 
@@ -300,7 +305,7 @@ function renderIssueDetail(issue, timeEntries, members) {
     </div>
     <div class="detail-section">
       <h3>Description</h3>
-      <div class="detail-description markdown-body">${issue.description ? renderMarkdown(issue.description) : '<span class="detail-empty">No description.</span>'}</div>
+      <div class="detail-description markdown-body">${issue.description ? renderMarkdown(issue.description, issue.attachments) : '<span class="detail-empty">No description.</span>'}</div>
     </div>
     ${subtasksHtml ? `<div class="detail-section"><h3>Related tickets</h3>${subtasksHtml}</div>` : ''}
     ${customFieldsHtml ? `<div class="detail-section"><h3>Custom fields</h3>${customFieldsHtml}</div>` : ''}
