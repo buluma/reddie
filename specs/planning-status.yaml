@@ -1,0 +1,10 @@
+# reddie planning status
+# Discover-phase checklist
+
+discover:
+  survey_context: done
+  scope_work: not_started
+  research_first: not_started
+  elaborate_spec: not_started
+  plan_release: not_started
+  slice_tasks: not_started

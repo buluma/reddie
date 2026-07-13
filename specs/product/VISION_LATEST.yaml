@@ -1,0 +1,6 @@
+# reddie vision
+
+vision: >
+  A lightweight, open-source Kanban front-end for Redmine that works
+  against any instance without modifications. No backend required,
+  no private infrastructure dependencies.

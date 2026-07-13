@@ -1,0 +1,7 @@
+# reddie release plan
+# Roadmap lives in Linear (SHA-18). This file tracks releases.
+
+version: 1.4.5
+status: released
+
+epics: []

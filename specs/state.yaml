@@ -1,0 +1,22 @@
+# reddie project state
+# Updated by skills at phase boundaries
+
+workflow_mode: solo-git
+active_flow: null
+active_epic_id: null
+active_story_id: null
+
+session:
+  started: null
+  last_active: null
+
+handoff:
+  next_skill: null
+
+git:
+  branch: master
+  head: null
+  dirty: false
+
+metrics:
+  story_start: null

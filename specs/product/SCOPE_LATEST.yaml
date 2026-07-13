@@ -1,0 +1,14 @@
+# reddie scope
+# What's in and out
+
+in_scope:
+  - Redmine Kanban board
+  - Ticket detail view with comments, time tracking, attachments
+  - Personal scratch cards (local-only)
+  - Cross-platform builds (macOS, Windows, Linux)
+  - GitHub Releases with CI
+
+out_of_scope:
+  - Converge dependency
+  - Paid Apple Developer cert / notarization
+  - Real-time WebSocket sync (uses polling)

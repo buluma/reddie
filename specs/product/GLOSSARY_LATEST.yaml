@@ -1,0 +1,15 @@
+# reddie glossary
+
+terms:
+  column_mapping: >
+    Dynamic classification of Redmine issue_statuses into
+    backlog/todo/in-progress/done columns via name/is_closed heuristic
+  column_overrides: >
+    Per-status override layer that can force a status into a
+    different column than the heuristic predicts
+  scratch_card: >
+    Personal local-only card with no issueId, stored in
+    localStorage, never synced to Redmine
+  tracker: >
+    Redmine issue type (Bug, Feature, etc.) — enabled per-project,
+    not globally
