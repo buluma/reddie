@@ -138,6 +138,32 @@ function request(baseUrl, apiKey, path, method = 'GET', body = null, options = {
   return withRetry(() => requestOnce(baseUrl, apiKey, path, method, body, options), { method });
 }
 
+// Redmine caps `limit` at 100 per page and returns `total_count`, so any list
+// longer than 100 is silently truncated unless the caller walks `offset` to
+// the end. This is the shared paging loop behind every list endpoint: it's
+// decoupled from HTTP via a fetchPage(offset, limit) callback that resolves
+// { items, total_count }, so the loop itself is pure and unit-testable.
+const PAGE_SIZE = 100;
+// Safety cap so a server that lies about total_count (or always returns a full
+// page) can't spin the board load forever - 1000 pages = 100k rows, far past
+// anything a personal Redmine board realistically holds.
+const MAX_PAGES = 1000;
+
+async function collectAllPages(fetchPage, pageSize = PAGE_SIZE) {
+  const all = [];
+  let offset = 0;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const { items = [], total_count } = await fetchPage(offset, pageSize);
+    all.push(...items);
+    offset += pageSize;
+    // total_count is authoritative when present; when it's missing we can't
+    // assume a full page is the last one, so only a short/empty page ends it.
+    const knownTotal = Number.isFinite(total_count) && total_count > 0 ? total_count : Infinity;
+    if (items.length < pageSize || all.length >= knownTotal) break;
+  }
+  return all;
+}
+
 class RedmineClient {
   constructor(baseUrl, apiKey) {
     this.baseUrl = baseUrl;
@@ -220,8 +246,10 @@ class RedmineClient {
   }
 
   async listProjects() {
-    const result = await this.get('/projects.json?limit=100');
-    return result.projects || [];
+    return collectAllPages(async (offset, limit) => {
+      const result = await this.get(`/projects.json?limit=${limit}&offset=${offset}`);
+      return { items: result.projects || [], total_count: result.total_count };
+    });
   }
 
   async listProjectTrackers(projectId) {
@@ -266,32 +294,41 @@ class RedmineClient {
   }
 
   async listMyIssues() {
-    const result = await this.get(
-      '/issues.json?assigned_to_id=me&status_id=*&limit=100&sort=updated_on:desc',
-    );
-    return result.issues || [];
+    return collectAllPages(async (offset, limit) => {
+      const result = await this.get(
+        `/issues.json?assigned_to_id=me&status_id=*&limit=${limit}&offset=${offset}&sort=updated_on:desc`,
+      );
+      return { items: result.issues || [], total_count: result.total_count };
+    });
   }
 
   // Tickets you created but reassigned to someone else drop out of
   // listMyIssues() entirely (it's assignee-filtered) - this is the only
   // way to keep track of them.
   async listAuthoredIssues() {
-    const result = await this.get(
-      '/issues.json?author_id=me&status_id=*&limit=100&sort=updated_on:desc',
-    );
-    return result.issues || [];
+    return collectAllPages(async (offset, limit) => {
+      const result = await this.get(
+        `/issues.json?author_id=me&status_id=*&limit=${limit}&offset=${offset}&sort=updated_on:desc`,
+      );
+      return { items: result.issues || [], total_count: result.total_count };
+    });
   }
 
   async getIssueDetail(issueId) {
-    const [issueResult, timeEntriesResult] = await Promise.all([
+    const [issueResult, timeEntries] = await Promise.all([
       this.get(`/issues/${issueId}.json?include=journals,attachments,relations,allowed_statuses,children`),
-      this.get(`/time_entries.json?issue_id=${issueId}&limit=100&sort=spent_on:desc`).catch(() => ({
-        time_entries: [],
-      })),
+      // Time tracking can be disabled on an instance (this 403s then) - fall
+      // back to an empty log rather than failing the whole detail load.
+      collectAllPages(async (offset, limit) => {
+        const result = await this.get(
+          `/time_entries.json?issue_id=${issueId}&limit=${limit}&offset=${offset}&sort=spent_on:desc`,
+        );
+        return { items: result.time_entries || [], total_count: result.total_count };
+      }).catch(() => []),
     ]);
     return {
       issue: issueResult.issue,
-      timeEntries: timeEntriesResult.time_entries || [],
+      timeEntries,
     };
   }
 
@@ -300,13 +337,16 @@ class RedmineClient {
   }
 
   async listProjectMembers(projectId) {
-    const result = await this.get(`/projects/${projectId}/memberships.json?limit=100`);
+    const memberships = await collectAllPages(async (offset, limit) => {
+      const result = await this.get(`/projects/${projectId}/memberships.json?limit=${limit}&offset=${offset}`);
+      return { items: result.memberships || [], total_count: result.total_count };
+    });
     // Memberships are per-role, so the same user can appear more than once
     // (one row per role they hold on the project) - dedupe by user id.
     // Group memberships have no `user` field at all - skip those, they
     // aren't valid issue assignees on their own.
     const byId = new Map();
-    (result.memberships || []).forEach((m) => {
+    memberships.forEach((m) => {
       if (m.user && !byId.has(m.user.id)) byId.set(m.user.id, m.user);
     });
     return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -391,4 +431,4 @@ function sameInstanceImagePath(rawUrl, baseUrl) {
   return resolved.pathname + resolved.search;
 }
 
-module.exports = { RedmineClient, buildColumnMapping, sameInstanceImagePath, isRetriable, withRetry };
+module.exports = { RedmineClient, buildColumnMapping, sameInstanceImagePath, collectAllPages, isRetriable, withRetry };
