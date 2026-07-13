@@ -612,7 +612,6 @@ header h1 {
 .detail-description {
   font-size: 14px;
   line-height: 1.5;
-  white-space: pre-wrap;
 }
 
 .journal-entry {
@@ -638,7 +637,60 @@ header h1 {
 .journal-notes {
   font-size: 13px;
   line-height: 1.4;
-  white-space: pre-wrap;
+}
+
+/* Rendered Markdown (description/comments) - marked.parse() output is
+   block-level HTML, not preformatted text, so this styles it like normal
+   prose rather than relying on white-space: pre-wrap (the previous plain-
+   escaped-text approach). */
+.markdown-body p {
+  margin: 0 0 0.6em;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0 0 0.6em;
+  padding-left: 1.4em;
+}
+
+.markdown-body code {
+  background: var(--input-bg);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+
+.markdown-body pre {
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 0 0 0.6em;
+}
+
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--modal-border);
+  margin: 0 0 0.6em;
+  padding-left: 10px;
+  color: var(--text-muted);
+}
+
+.markdown-body a {
+  color: var(--primary-color);
+}
+
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 6px;
 }
 
 .time-entry-row, .attachment-row {

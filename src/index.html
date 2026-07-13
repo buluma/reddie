@@ -150,9 +150,28 @@
     </div>
   </div>
 
+  <!-- Update Modal -->
+  <div id="update-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Update Available</h2>
+        <button class="close-btn" onclick="closeUpdateModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <p id="update-modal-body"></p>
+        <div class="form-actions">
+          <button onclick="openReleasesFromModal()">Open GitHub Releases</button>
+          <button type="button" class="secondary-btn" onclick="closeUpdateModal()">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
 
   <script src="vendor/sortable.min.js"></script>
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/purify.min.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

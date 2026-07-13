@@ -21,8 +21,10 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "dompurify": "^3.4.12",
     "dotenv": "^17.4.2",
     "electron-updater": "^6.8.9",
+    "marked": "^18.0.6",
     "sortablejs": "^1.15.7"
   },
   "build": {

@@ -9,7 +9,12 @@ const https = require('https');
 // `raw: true` sends `body` as-is (a Buffer, for the uploads endpoint,
 // which wants the file's actual bytes) instead of JSON-encoding it -
 // everything else about the request/response handling is identical.
-function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = false, contentType } = {}) {
+// `binary: true` is the response-side equivalent, for GETing attachment
+// bytes (images embedded in a description/comment) - it collects the
+// response as a Buffer and resolves { buffer, contentType } instead of
+// JSON-parsing it, since JSON.parse on binary image data would fail (or
+// worse, silently mangle it via the string coercion `data += chunk` does).
+function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = false, contentType, binary = false } = {}) {
   return new Promise((resolve, reject) => {
     let uri;
     try {
@@ -36,10 +41,24 @@ function request(baseUrl, apiKey, path, method = 'GET', body = null, { raw = fal
         headers,
       },
       (res) => {
+        const status = res.statusCode || 0;
+
+        if (binary) {
+          const chunks = [];
+          res.on('data', (chunk) => chunks.push(chunk));
+          res.on('end', () => {
+            if (status >= 200 && status < 300) {
+              resolve({ buffer: Buffer.concat(chunks), contentType: res.headers['content-type'] || 'application/octet-stream' });
+            } else {
+              reject(new Error(`Redmine request failed (${status})`));
+            }
+          });
+          return;
+        }
+
         let data = '';
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => {
-          const status = res.statusCode || 0;
           let parsed = null;
           if (data) {
             try {
@@ -87,6 +106,17 @@ class RedmineClient {
 
   postRaw(path, buffer, contentType) {
     return request(this.baseUrl, this.apiKey, path, 'POST', buffer, { raw: true, contentType });
+  }
+
+  // For images embedded in a description/comment (e.g. `![](attachments/download/61/foo.png)`
+  // in Markdown) - those attachment URLs need the same X-Redmine-API-Key
+  // header as everything else, which a plain <img src> can't send. Only
+  // call this with a URL already confirmed to resolve to this same
+  // Redmine instance (see main.js's fetch-image handler) - it always
+  // attaches the API key, so pointing it at an arbitrary third-party URL
+  // would leak the key to that host.
+  fetchBinary(path) {
+    return request(this.baseUrl, this.apiKey, path, 'GET', null, { binary: true });
   }
 
   async getCurrentUser() {

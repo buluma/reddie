@@ -42,7 +42,18 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 
 - Cross-platform builds: macOS (`.dmg`), Windows (`.exe`/NSIS), Linux (`.AppImage`/`.deb`)
 - GitHub Actions CI: 3-platform matrix build on tag push, auto-publishes a real GitHub Release once every platform succeeds
-- In-app update checker (`electron-updater`) — checks on launch (packaged builds only) and via a manual "Check for Updates…" in Settings, notifies with the new version and a link to GitHub Releases. **Does not auto-download/auto-install** — macOS's Squirrel.Mac refuses to apply an update without a stable code-signing identity, which ad-hoc/unsigned builds don't have (needs a paid Apple Developer account, same blocker as notarization below). Grab new versions from GitHub Releases manually.
+- In-app update checker (`electron-updater`) — checks on launch (packaged builds only) and via a manual "Check for Updates…" in Settings, shown in a modal with current/new version and a one-click "Open GitHub Releases" button. **Does not auto-download/auto-install** — macOS's Squirrel.Mac refuses to apply an update without a stable code-signing identity, which ad-hoc/unsigned builds don't have (needs a paid Apple Developer account, same blocker as notarization below). Grab new versions from GitHub Releases manually.
+
+## Tray
+
+- Menu bar icon, colored by urgency of your unfinished assigned issues (gray = none, green/orange/red = low/medium/high priority present) — computed client-side from priority name, pushed to the tray on every board refresh
+- Right-click menu: Show Reddie, Settings…, Check for Updates…, Quit
+- Click toggles the main window's visibility
+
+## Rendering
+
+- Description and comments render as Markdown (`marked` + `DOMPurify` sanitization), not plain escaped text — matches how most modern Redmine instances (default `text_formatting` since 3.3) actually store ticket text. A Textile-configured instance will render close to as-is, just without formatting — not a regression from the previous plain-text display.
+- Images embedded in rendered Markdown that point at the configured Redmine instance are fetched with the same API-key auth as everything else and swapped in as data URLs (a plain `<img>` can't send that header) — cached per session. Images pointing elsewhere are left alone, unauthenticated, so the API key never gets sent to a third-party host.
 
 ## Not yet supported
 

@@ -30,4 +30,13 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   onUpdateStatus: (callback) => {
     ipcRenderer.on('update-status', (event, data) => callback(data));
   },
+  openReleasesPage: () => ipcRenderer.invoke('open-releases-page'),
+  fetchImage: (url) => ipcRenderer.invoke('fetch-image', url),
+  updateTrayStatus: (status) => ipcRenderer.send('update-tray-status', status),
+  onShowSettings: (callback) => {
+    ipcRenderer.on('show-settings', () => callback());
+  },
+  onShowUpdater: (callback) => {
+    ipcRenderer.on('show-updater', () => callback());
+  },
 });

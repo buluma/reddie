@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
@@ -24,7 +24,7 @@ function sendUpdateStatus(status, extra = {}) {
 }
 
 autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'));
-autoUpdater.on('update-available', (info) => sendUpdateStatus('available', { version: info.version }));
+autoUpdater.on('update-available', (info) => sendUpdateStatus('available', { version: info.version, currentVersion: app.getVersion() }));
 autoUpdater.on('update-not-available', () => sendUpdateStatus('not-available'));
 autoUpdater.on('error', (err) => sendUpdateStatus('error', { message: err.message }));
 // No 'download-progress'/'update-downloaded' listeners - those only fire
@@ -109,6 +109,115 @@ async function fetchIssueDetail(issueId) {
 let mainWindow;
 const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
 
+// Tray: a plain colored dot rather than a recolored copy of the app icon -
+// it's a status indicator (how urgent is what's assigned to me right now),
+// not a logo, so it shouldn't try to look like one.
+let tray = null;
+let trayMenu = null;
+const trayIconCache = {};
+const TRAY_COLORS = { none: '#808080', low: '#30d158', medium: '#ff9f0a', high: '#ff453a' };
+
+function generateTrayDot(color) {
+  const size = process.platform === 'darwin' ? 16 : 32;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}"><circle cx="16" cy="16" r="13" fill="${color}"/></svg>`;
+  const img = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
+  // Template images let macOS recolor for light/dark menu bars - only the
+  // neutral/no-work variant should get that treatment, the urgency colors
+  // (green/orange/red) need to stay their actual color to mean anything.
+  if (process.platform === 'darwin' && color === TRAY_COLORS.none) {
+    img.setTemplateImage(true);
+  }
+  return img;
+}
+
+function cacheTrayIcons() {
+  Object.entries(TRAY_COLORS).forEach(([urgency, color]) => {
+    trayIconCache[urgency] = generateTrayDot(color);
+  });
+}
+
+function buildTrayContextMenu() {
+  trayMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show Reddie',
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          createWindow();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Settings…',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show();
+          mainWindow.focus();
+          mainWindow.webContents.send('show-settings');
+        }
+      },
+    },
+    {
+      label: 'Check for Updates…',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show();
+          mainWindow.focus();
+          mainWindow.webContents.send('show-updater');
+        }
+      },
+    },
+    { type: 'separator' },
+    { role: 'quit' },
+  ]);
+}
+
+// Driven by { count, urgency } pushed from the renderer after every board
+// refresh (see updateTrayStatus() in renderer.js) - the renderer already
+// holds the fetched issue list and knows the column mapping/priority
+// classification, so it computes urgency; main.js just paints the tray
+// chrome from whatever it's told. Keeps Redmine domain logic out of main.js.
+function updateTrayAppearance(count, urgency) {
+  if (!tray || tray.isDestroyed()) return;
+  const variant = count > 0 ? urgency : 'none';
+  const icon = trayIconCache[variant] || trayIconCache.none;
+  if (icon && !icon.isEmpty()) {
+    try {
+      tray.setImage(icon);
+    } catch (err) {
+      // ignore - invalid image, keep whatever's currently shown
+    }
+  }
+  if (process.platform === 'darwin') {
+    tray.setTitle(count > 0 ? (count > 99 ? '99+' : String(count)) : '');
+  }
+  tray.setToolTip(count > 0 ? `Reddie: ${count} issue${count !== 1 ? 's' : ''} assigned` : 'Reddie - no pending issues');
+}
+
+function createTray() {
+  cacheTrayIcons();
+  buildTrayContextMenu();
+  const icon = trayIconCache.none;
+  tray = new Tray(icon && !icon.isEmpty() ? icon : nativeImage.createEmpty());
+  tray.setToolTip('Reddie');
+  tray.setContextMenu(trayMenu);
+  tray.on('click', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow();
+      return;
+    }
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -136,6 +245,7 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   createWindow();
+  createTray();
 
   // A packaged build already gets its icon for free from Info.plist's
   // CFBundleIconFile (build/icon.icns) - this is only needed so `npm
@@ -382,4 +492,31 @@ ipcMain.handle('check-for-updates', async () => {
 
 ipcMain.handle('install-update', async () => {
   autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('open-releases-page', async () => {
+  await shell.openExternal('https://github.com/buluma/reddie/releases');
+});
+
+ipcMain.on('update-tray-status', (event, { count, urgency }) => {
+  updateTrayAppearance(count || 0, urgency || 'none');
+});
+
+// Fetches an attachment image (embedded in a rendered description/comment)
+// with the same X-Redmine-API-Key auth as every other request - only for
+// URLs that actually resolve to the configured Redmine instance. A
+// description can embed a link to any host (pasted from elsewhere); this
+// must never attach the API key to a request going somewhere else.
+ipcMain.handle('fetch-image', async (event, url) => {
+  try {
+    const resolved = new URL(url, config.redmineBaseUrl);
+    const configuredOrigin = new URL(config.redmineBaseUrl).origin;
+    if (resolved.origin !== configuredOrigin) {
+      return { error: 'Image is not on the configured Redmine instance' };
+    }
+    const { buffer, contentType } = await client.fetchBinary(resolved.pathname + resolved.search);
+    return { ok: true, dataUrl: `data:${contentType};base64,${buffer.toString('base64')}` };
+  } catch (err) {
+    return { error: err.message };
+  }
 });

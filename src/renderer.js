@@ -74,12 +74,7 @@ function initUpdateListener() {
   window.reddieAPI.onUpdateStatus((data) => {
     switch (data.status) {
       case 'available':
-        // Auto-install isn't possible on an unsigned/ad-hoc-signed build
-        // (macOS refuses to apply an update without a matching stable
-        // code-signing identity, which needs a paid Apple Developer
-        // account) - point at the manual download instead of implying
-        // it'll just handle itself.
-        showToast(`Update v${data.version} available - download it from github.com/buluma/reddie/releases`, 'info');
+        openUpdateModal(data.version, data.currentVersion);
         break;
       case 'error':
         showToast(`Update error: ${data.message}`, 'error');
@@ -88,6 +83,27 @@ function initUpdateListener() {
       // worth a toast.
     }
   });
+}
+
+function openUpdateModal(newVersion, currentVersion) {
+  // Auto-install isn't possible on an unsigned/ad-hoc-signed build (macOS
+  // refuses to apply an update without a matching stable code-signing
+  // identity, which needs a paid Apple Developer account) - point at the
+  // manual download instead of implying it'll just handle itself.
+  const versionLine = currentVersion
+    ? `Reddie v${newVersion} is available (you have v${currentVersion}).`
+    : `Reddie v${newVersion} is available.`;
+  document.getElementById('update-modal-body').textContent =
+    `${versionLine} Grab it from GitHub Releases and install it manually.`;
+  document.getElementById('update-modal').classList.add('show');
+}
+
+function closeUpdateModal() {
+  document.getElementById('update-modal').classList.remove('show');
+}
+
+function openReleasesFromModal() {
+  window.reddieAPI.openReleasesPage();
 }
 
 async function checkForUpdates() {
@@ -128,6 +144,49 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Redmine's description/comment text is Markdown on any modern instance
+// (the default text_formatting since Redmine 3.3) - marked.parse() renders
+// it, DOMPurify.sanitize() strips anything that shouldn't end up as live
+// HTML in the app (script tags, event handler attributes, etc.) before it
+// goes into innerHTML. If a specific instance is still configured for
+// Textile, this renders the raw source close to as-is (Textile markup
+// mostly looks like plain text to a Markdown parser), just without any
+// formatting - not a regression from the previous plain-escaped display.
+function renderMarkdown(text) {
+  if (!text) return '';
+  const html = marked.parse(text, { breaks: true });
+  return DOMPurify.sanitize(html);
+}
+
+// Rendered Markdown images pointing at this Redmine instance's attachments
+// need the same X-Redmine-API-Key auth as everything else - a plain <img
+// src> can't send that header, so the main process fetches the bytes
+// (fetch-image already checks the URL resolves to the configured instance
+// before attaching the key - see main.js) and this swaps in a data URL.
+// Cached in-memory by URL for the session so re-opening the same issue
+// doesn't refetch images it already has.
+const imageDataUrlCache = new Map();
+
+async function hydrateAuthenticatedImages(container) {
+  const images = Array.from(container.querySelectorAll('img[src]'));
+  await Promise.all(images.map(async (img) => {
+    const src = img.getAttribute('src');
+    if (!src || src.startsWith('data:')) return;
+    if (imageDataUrlCache.has(src)) {
+      img.src = imageDataUrlCache.get(src);
+      return;
+    }
+    const result = await window.reddieAPI.fetchImage(src);
+    if (result && result.ok) {
+      imageDataUrlCache.set(src, result.dataUrl);
+      img.src = result.dataUrl;
+    }
+    // Not the configured instance (or the fetch failed) - leave the <img>
+    // pointing at its original src; the browser will just try to load it
+    // unauthenticated like any normal external image link.
+  }));
+}
+
 function formatDate(value) {
   if (!value) return '—';
   const d = new Date(value);
@@ -164,7 +223,7 @@ function renderIssueDetail(issue, timeEntries, members) {
           <strong>${escapeHtml((j.user && j.user.name) || 'Unknown')}</strong>
           <span class="journal-date">${formatDateTime(j.created_on)}</span>
         </div>
-        <div class="journal-notes">${escapeHtml(j.notes)}</div>
+        <div class="journal-notes markdown-body">${renderMarkdown(j.notes)}</div>
       </div>
     `).join('') || '<div class="detail-empty">No comments yet.</div>';
 
@@ -222,7 +281,7 @@ function renderIssueDetail(issue, timeEntries, members) {
     </div>
     <div class="detail-section">
       <h3>Description</h3>
-      <div class="detail-description">${issue.description ? escapeHtml(issue.description) : '<span class="detail-empty">No description.</span>'}</div>
+      <div class="detail-description markdown-body">${issue.description ? renderMarkdown(issue.description) : '<span class="detail-empty">No description.</span>'}</div>
     </div>
     ${subtasksHtml ? `<div class="detail-section"><h3>Related tickets</h3>${subtasksHtml}</div>` : ''}
     ${customFieldsHtml ? `<div class="detail-section"><h3>Custom fields</h3>${customFieldsHtml}</div>` : ''}
@@ -248,6 +307,8 @@ function renderIssueDetail(issue, timeEntries, members) {
       ${journalsHtml}
     </div>
   `;
+
+  hydrateAuthenticatedImages(document.getElementById('detail-body'));
 }
 
 let currentDetailIssueId = null;
@@ -836,6 +897,25 @@ function loadState() {
 // as a remote move - notifyChanges stays off).
 let knownIssueColumns = {};
 
+// Classifies a set of unfinished issues into a single tray urgency level,
+// by priority name substring - same heuristic works across instances since
+// it doesn't depend on a specific priority list, just common naming
+// (Urgent/Immediate, High, Medium/Normal). Pure/pushed-to-main rather than
+// computed in main.js itself, since the renderer already has the fetched
+// issue list and priority data - see updateTrayAppearance() in main.js.
+function classifyTrayUrgency(unfinishedIssues) {
+  if (unfinishedIssues.some(i => /urgent|high|immediate/i.test((i.priority && i.priority.name) || ''))) return 'high';
+  if (unfinishedIssues.some(i => /medium|normal/i.test((i.priority && i.priority.name) || ''))) return 'medium';
+  return 'low';
+}
+
+function updateTrayStatus(unfinishedIssues) {
+  window.reddieAPI.updateTrayStatus({
+    count: unfinishedIssues.length,
+    urgency: classifyTrayUrgency(unfinishedIssues),
+  });
+}
+
 function notifyRemoteChanges(nextIssueColumns) {
   if (typeof Notification === 'undefined') return;
   Object.entries(nextIssueColumns).forEach(([issueId, info]) => {
@@ -888,6 +968,10 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
 
     if (notifyChanges) notifyRemoteChanges(nextIssueColumns);
     knownIssueColumns = nextIssueColumns;
+
+    // Tray badge only makes sense for "what's on my plate" (assigned mode) -
+    // authored-but-reassigned tickets aren't work waiting on you.
+    updateTrayStatus(boardMode === 'assigned' ? issues.filter(i => getColumnFromStatus(i.status) !== 'done') : []);
 
     // Merge with existing state instead of overwriting it: keep any
     // manually-added local card (no issueId) exactly where it was, and
@@ -956,10 +1040,14 @@ window.loadNewTicketTrackers = loadNewTicketTrackers;
 window.loadNewTicketCustomFields = loadNewTicketCustomFields;
 window.submitNewTicket = submitNewTicket;
 window.checkForUpdates = checkForUpdates;
+window.closeUpdateModal = closeUpdateModal;
+window.openReleasesFromModal = openReleasesFromModal;
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
   initUpdateListener();
+  window.reddieAPI.onShowSettings(() => openSettings());
+  window.reddieAPI.onShowUpdater(() => checkForUpdates());
   document.body.classList.add(`platform-${window.reddieAPI.platform}`);
 
   // main.js already resolved config precedence at startup (.env, else its
