@@ -181,8 +181,12 @@ async function loadTextFormatSetting() {
 // format and sanitized before it reaches innerHTML.
 function renderBody(text, attachments) {
   if (!text) return '';
-  const resolved = reddieInlineImages.resolveInlineAttachmentImages(text, attachments);
-  const html = effectiveTextFormat() === 'textile'
+  const format = effectiveTextFormat();
+  // Expand Redmine macros (e.g. {{collapse}}) and resolve inline attachment
+  // image refs to real content_urls before the body reaches the parser.
+  const expanded = reddieMacros.expandRedmineMacros(text, format);
+  const resolved = reddieInlineImages.resolveInlineAttachmentImages(expanded, attachments);
+  const html = format === 'textile'
     ? textile.parse(resolved)
     : marked.parse(resolved, { breaks: true });
   return DOMPurify.sanitize(html);

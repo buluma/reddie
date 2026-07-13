@@ -27,8 +27,11 @@ describe('sameInstanceImagePath', () => {
     expect(sameInstanceImagePath('https://redmine.example.com:8443/x.png', BASE)).toBeNull();
   });
 
-  it('returns null when downgraded to a different scheme (origin differs)', () => {
-    expect(sameInstanceImagePath('http://redmine.example.com/x.png', BASE)).toBeNull();
+  it('allows a same-host URL on a different scheme (Redmine reports http content_url on an https instance)', () => {
+    // Safe: the fetch always goes to the configured https base, so the API
+    // key only ever reaches the configured host. Rejecting this would leave
+    // every inline image broken on such an instance.
+    expect(sameInstanceImagePath('http://redmine.example.com/x.png', BASE)).toBe('/x.png');
   });
 
   it('handles a base URL that carries a trailing path without cross-origin false negatives', () => {

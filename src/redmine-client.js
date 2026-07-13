@@ -426,8 +426,16 @@ function buildColumnMapping(statuses, overrides = {}) {
 // living inside main.js's IPC handler.
 function sameInstanceImagePath(rawUrl, baseUrl) {
   const resolved = new URL(rawUrl, baseUrl);
-  const configuredOrigin = new URL(baseUrl).origin;
-  if (resolved.origin !== configuredOrigin) return null;
+  const base = new URL(baseUrl);
+  // Match host + port only, deliberately NOT scheme: Redmine frequently
+  // reports an attachment's content_url with http:// even on an https
+  // instance (its host/protocol setting lags), which an exact-origin check
+  // would wrongly reject, leaving every inline image unauthenticated and
+  // broken. This stays safe because the actual fetch (fetchBinary) always
+  // goes to the configured baseUrl - so the API key only ever reaches the
+  // configured host regardless of the content_url's scheme. A different host
+  // or port is still refused.
+  if (resolved.hostname !== base.hostname || resolved.port !== base.port) return null;
   return resolved.pathname + resolved.search;
 }
 

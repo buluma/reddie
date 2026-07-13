@@ -31,7 +31,7 @@ module.exports = [
     // shared window scope, so a symbol defined in urgency.js (reddieUrgency)
     // or exposed on window in one file is legitimately referenced from
     // another - declare those cross-file globals so no-undef doesn't trip.
-    files: ['src/renderer.js', 'src/tray-popover.js', 'src/urgency.js', 'src/inline-images.js', 'src/text-format.js'],
+    files: ['src/renderer.js', 'src/tray-popover.js', 'src/urgency.js', 'src/inline-images.js', 'src/text-format.js', 'src/redmine-macros.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',
@@ -48,6 +48,8 @@ module.exports = [
         reddieInlineImages: 'readonly',
         // src/text-format.js's global export, consumed by renderer.js.
         reddieTextFormat: 'readonly',
+        // src/redmine-macros.js's global export, consumed by renderer.js.
+        reddieMacros: 'readonly',
         // Preload bridges (contextBridge.exposeInMainWorld).
         trayAPI: 'readonly',
         module: 'writable',
