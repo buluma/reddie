@@ -47,8 +47,10 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 ## Tray
 
 - Menu bar icon, colored by urgency of your unfinished assigned issues (gray = none, green/orange/red = low/medium/high priority present) — computed client-side from priority name, pushed to the tray on every board refresh
-- Right-click menu: Show Reddie, Settings…, Check for Updates…, Quit
-- Click toggles the main window's visibility
+- macOS dock/Linux(Unity) badge count mirrors the same unfinished-issue count (no-ops silently on Windows, which has no equivalent without per-window overlay icons)
+- **Left-click**: quick-glance popover (positioned under the tray icon, like a native menu-bar app) — connection dot, a stacked bar + legend of column counts (Backlog/To Do/In Progress/Done), and up to 5 of your most urgent unfinished tickets (click one to jump straight to its detail view), plus Settings/Updates/Quit buttons. Closes on losing focus, like any other menu-bar popover.
+- **Right-click**: the fuller native menu (same ticket list, plus Show Reddie/Settings…/Check for Updates…/Quit) — kept as a second path since it's the Windows convention and doesn't depend on the popover's window-positioning logic
+- Closing the window hides it to the tray instead of quitting, on every platform (previously only true on macOS by Electron's default) — the tray's Quit item (or Cmd/Ctrl+Q) is the only real exit now
 
 ## Rendering
 
