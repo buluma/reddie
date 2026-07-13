@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
@@ -109,34 +109,77 @@ async function fetchIssueDetail(issueId) {
 let mainWindow;
 const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
 
+// Closing the window hides it to the tray instead of quitting (see the
+// mainWindow 'close' handler below) - isQuitting distinguishes that from
+// an actual quit (Quit menu item / Cmd+Q), which must let the close go
+// through rather than re-hiding a window that's about to be destroyed
+// anyway.
+let isQuitting = false;
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
 // Tray: a plain colored dot rather than a recolored copy of the app icon -
 // it's a status indicator (how urgent is what's assigned to me right now),
 // not a logo, so it shouldn't try to look like one.
 let tray = null;
 let trayMenu = null;
+let popoverWindow = null;
+// Last payload pushed from the renderer (see update-tray-status below) -
+// kept around so a freshly-opened popover has something to show
+// immediately instead of a blank frame until the next board refresh.
+let latestTrayData = { count: 0, urgency: 'none', issues: [], columnCounts: {}, connected: false };
 const trayIconCache = {};
 const TRAY_COLORS = { none: '#808080', low: '#30d158', medium: '#ff9f0a', high: '#ff453a' };
 
-function generateTrayDot(color) {
-  const size = process.platform === 'darwin' ? 16 : 32;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}"><circle cx="16" cy="16" r="13" fill="${color}"/></svg>`;
-  const img = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
+// Pre-rendered PNGs (src/tray-icons/dot-<urgency>.png + @2x) rather than an
+// SVG data URL - nativeImage.createFromDataURL only decodes raster formats
+// (PNG/JPEG), not SVG markup, so an SVG data URL silently produces an
+// empty image (confirmed live: tray showed no icon at all, only the
+// setTitle() text). These live under src/, not build/ - build/ is
+// electron-builder's buildResources dir, consumed at build time for the
+// app's own OS-level icon and never copied into the packaged asar (see
+// iconPath's comment above for the same gotcha with the dock icon; this
+// bit the tray dots for real, confirmed via `asar list` showing no build/
+// contents at all in the packaged app). @2x sibling files are picked up
+// automatically by Electron for Retina displays as long as they sit next
+// to the @1x file.
+function loadTrayDot(urgency) {
+  const img = nativeImage.createFromPath(path.join(__dirname, 'tray-icons', `dot-${urgency}.png`));
   // Template images let macOS recolor for light/dark menu bars - only the
   // neutral/no-work variant should get that treatment, the urgency colors
   // (green/orange/red) need to stay their actual color to mean anything.
-  if (process.platform === 'darwin' && color === TRAY_COLORS.none) {
+  if (process.platform === 'darwin' && urgency === 'none') {
     img.setTemplateImage(true);
   }
   return img;
 }
 
 function cacheTrayIcons() {
-  Object.entries(TRAY_COLORS).forEach(([urgency, color]) => {
-    trayIconCache[urgency] = generateTrayDot(color);
+  Object.keys(TRAY_COLORS).forEach((urgency) => {
+    trayIconCache[urgency] = loadTrayDot(urgency);
   });
 }
 
-function buildTrayContextMenu() {
+function truncateLabel(text, max = 40) {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+// `issues` is the same top-N unfinished-issue summary the renderer sends
+// alongside count/urgency (see update-tray-status below) - rebuilt on every
+// board refresh so the menu never goes stale while the app is running.
+function buildTrayContextMenu(issues = []) {
+  const ticketItems = issues.map((issue) => ({
+    label: `#${issue.id} ${truncateLabel(issue.subject || '')}`,
+    click: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('open-issue-detail-from-tray', issue.id);
+      }
+    },
+  }));
+
   trayMenu = Menu.buildFromTemplate([
     {
       label: 'Show Reddie',
@@ -149,6 +192,7 @@ function buildTrayContextMenu() {
         }
       },
     },
+    ...(ticketItems.length ? [{ type: 'separator' }, ...ticketItems] : []),
     { type: 'separator' },
     {
       label: 'Settings…',
@@ -173,6 +217,10 @@ function buildTrayContextMenu() {
     { type: 'separator' },
     { role: 'quit' },
   ]);
+  // Not tray.setContextMenu() here on purpose - that would make macOS show
+  // this menu on left-click too (its behavior once a context menu is set),
+  // which would swallow the click meant to toggle the popover below.
+  // Shown manually via tray.popUpContextMenu() on right-click instead.
 }
 
 // Driven by { count, urgency } pushed from the renderer after every board
@@ -195,26 +243,107 @@ function updateTrayAppearance(count, urgency) {
     tray.setTitle(count > 0 ? (count > 99 ? '99+' : String(count)) : '');
   }
   tray.setToolTip(count > 0 ? `Reddie: ${count} issue${count !== 1 ? 's' : ''} assigned` : 'Reddie - no pending issues');
+
+  // macOS/Linux(Unity) only - Electron silently no-ops this on Windows
+  // (there's no equivalent without a per-window overlay icon, not worth
+  // the extra plumbing for a count that's already visible in the tray
+  // tooltip/title there).
+  try {
+    app.setBadgeCount(count);
+  } catch (err) {
+    // ignore - unsupported on this platform
+  }
+}
+
+const POPOVER_WIDTH = 320;
+// Starting height only - real height comes from tray-popover.js measuring
+// its own rendered content (see tray-popover-resize below) and correcting
+// it, since a fixed height left dead space below the footer whenever there
+// were fewer than 5 tickets (confirmed live).
+const POPOVER_DEFAULT_HEIGHT = 300;
+let popoverHeight = POPOVER_DEFAULT_HEIGHT;
+
+function createPopoverWindow() {
+  popoverWindow = new BrowserWindow({
+    width: POPOVER_WIDTH,
+    height: POPOVER_DEFAULT_HEIGHT,
+    show: false,
+    frame: false,
+    resizable: false,
+    fullscreenable: false,
+    movable: false,
+    skipTaskbar: true,
+    // A closed/hidden main window still keeps the app alive for the tray
+    // (see mainWindow's 'close' handler) - alwaysOnTop plus this popover's
+    // own blur handler is what makes it behave like a native menu-bar
+    // popover instead of just another window.
+    alwaysOnTop: true,
+    hasShadow: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'tray-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  popoverWindow.loadFile(path.join(__dirname, 'tray-popover.html'));
+  popoverWindow.on('blur', () => {
+    if (popoverWindow && !popoverWindow.isDestroyed()) popoverWindow.hide();
+  });
+}
+
+// Tray bounds are reliable on macOS/Windows; several Linux desktop
+// environments (GNOME/AppIndicator in particular) report an all-zero rect
+// since there's no real "icon position" concept there - fall back to the
+// primary display's corner in that case rather than positioning at (0,0).
+function getPopoverPosition(height) {
+  const trayBounds = tray.getBounds();
+  if (trayBounds && trayBounds.width > 0) {
+    const x = Math.round(trayBounds.x + trayBounds.width / 2 - POPOVER_WIDTH / 2);
+    const y = process.platform === 'darwin'
+      ? Math.round(trayBounds.y + trayBounds.height + 4)
+      : Math.round(trayBounds.y - height - 4);
+    return { x, y };
+  }
+  const { workArea } = screen.getPrimaryDisplay();
+  return {
+    x: workArea.x + workArea.width - POPOVER_WIDTH - 12,
+    y: workArea.y + workArea.height - height - 12,
+  };
+}
+
+function showPopover() {
+  if (!popoverWindow || popoverWindow.isDestroyed()) createPopoverWindow();
+  const { x, y } = getPopoverPosition(popoverHeight);
+  popoverWindow.setPosition(x, y);
+  popoverWindow.webContents.send('tray-data', latestTrayData);
+  popoverWindow.show();
+  popoverWindow.focus();
+}
+
+function hidePopover() {
+  if (popoverWindow && !popoverWindow.isDestroyed()) popoverWindow.hide();
 }
 
 function createTray() {
   cacheTrayIcons();
   buildTrayContextMenu();
+  createPopoverWindow();
   const icon = trayIconCache.none;
   tray = new Tray(icon && !icon.isEmpty() ? icon : nativeImage.createEmpty());
   tray.setToolTip('Reddie');
-  tray.setContextMenu(trayMenu);
+  // Left click: quick-glance popover. Right click: the fuller native menu
+  // (ticket list plus Settings/Updates/Quit) - see the setContextMenu note
+  // in buildTrayContextMenu() for why these two can't share tray.on('click').
   tray.on('click', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      createWindow();
-      return;
-    }
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
+    if (popoverWindow && popoverWindow.isVisible()) {
+      hidePopover();
     } else {
-      mainWindow.show();
-      mainWindow.focus();
+      showPopover();
     }
+  });
+  tray.on('right-click', () => {
+    hidePopover();
+    tray.popUpContextMenu(trayMenu);
   });
 }
 
@@ -241,6 +370,17 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+  // With a tray present, closing the window is "hide", not "quit" - on
+  // every platform, not just macOS's usual convention, since the tray now
+  // gives Windows/Linux users the same way back in. The Quit menu item
+  // (and Cmd+Q) still exits for real via isQuitting/before-quit above.
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
 }
 
 app.whenReady().then(async () => {
@@ -498,8 +638,67 @@ ipcMain.handle('open-releases-page', async () => {
   await shell.openExternal('https://github.com/buluma/reddie/releases');
 });
 
-ipcMain.on('update-tray-status', (event, { count, urgency }) => {
-  updateTrayAppearance(count || 0, urgency || 'none');
+ipcMain.on('update-tray-status', (event, payload) => {
+  latestTrayData = {
+    count: payload.count || 0,
+    urgency: payload.urgency || 'none',
+    issues: payload.issues || [],
+    columnCounts: payload.columnCounts || {},
+    connected: !!payload.connected,
+  };
+  updateTrayAppearance(latestTrayData.count, latestTrayData.urgency);
+  buildTrayContextMenu(latestTrayData.issues);
+  if (popoverWindow && !popoverWindow.isDestroyed() && popoverWindow.isVisible()) {
+    popoverWindow.webContents.send('tray-data', latestTrayData);
+  }
+});
+
+// Popover buttons/ticket rows fire these (see tray-popover.js) - each hides
+// the popover first so it doesn't linger on top once the main window comes
+// forward for the action it triggered.
+ipcMain.on('tray-popover-open-issue', (event, issueId) => {
+  hidePopover();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('open-issue-detail-from-tray', issueId);
+  }
+});
+
+ipcMain.on('tray-popover-open-settings', () => {
+  hidePopover();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('show-settings');
+  }
+});
+
+ipcMain.on('tray-popover-check-updates', () => {
+  hidePopover();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('show-updater');
+  }
+});
+
+ipcMain.on('tray-popover-quit', () => {
+  app.quit();
+});
+
+// tray-popover.js measures its own rendered content height (document.body.
+// scrollHeight) after every data render and reports it here, since the
+// content's length varies with the ticket count - a fixed window height
+// either clipped a long list or left dead space below a short one.
+ipcMain.on('tray-popover-resize', (event, contentHeight) => {
+  if (!popoverWindow || popoverWindow.isDestroyed()) return;
+  popoverHeight = Math.max(120, Math.min(Math.round(contentHeight), 560));
+  popoverWindow.setSize(POPOVER_WIDTH, popoverHeight);
+  if (popoverWindow.isVisible()) {
+    const { x, y } = getPopoverPosition(popoverHeight);
+    popoverWindow.setPosition(x, y);
+  }
 });
 
 // Fetches an attachment image (embedded in a rendered description/comment)

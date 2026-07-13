@@ -116,7 +116,12 @@ async function checkForUpdates() {
 }
 
 // Connection status
+// Mirrored into the tray popover (see updateTrayStatus below) - it has no
+// DOM of its own to read '#connection-status' back out of.
+let isConnected = false;
+
 function setConnectionStatus(state, text) {
+  isConnected = state === 'connected';
   const el = document.getElementById('connection-status');
   el.classList.remove('connected', 'error');
   if (state) el.classList.add(state);
@@ -909,10 +914,35 @@ function classifyTrayUrgency(unfinishedIssues) {
   return 'low';
 }
 
-function updateTrayStatus(unfinishedIssues) {
+const URGENCY_RANK = { high: 0, medium: 1, low: 2 };
+function issueUrgencyRank(issue) {
+  const name = (issue.priority && issue.priority.name) || '';
+  if (/urgent|high|immediate/i.test(name)) return URGENCY_RANK.high;
+  if (/medium|normal/i.test(name)) return URGENCY_RANK.medium;
+  return URGENCY_RANK.low;
+}
+
+// `apiState` is the same per-column card arrays loadFromAPI just built for
+// the board itself - reused here rather than recomputed, so the popover's
+// column bar always agrees with what's actually on screen.
+function updateTrayStatus(unfinishedIssues, apiState) {
+  // Most urgent first, so the tray menu's top few tickets are the ones
+  // actually worth interrupting your day for - not just whatever the API
+  // happened to return first.
+  const topIssues = [...unfinishedIssues]
+    .sort((a, b) => issueUrgencyRank(a) - issueUrgencyRank(b))
+    .slice(0, 5)
+    .map(i => ({ id: i.id, subject: i.subject || `Issue #${i.id}` }));
+
+  const columnCounts = {};
+  columns.forEach(col => { columnCounts[col] = (apiState[col] || []).length; });
+
   window.reddieAPI.updateTrayStatus({
     count: unfinishedIssues.length,
     urgency: classifyTrayUrgency(unfinishedIssues),
+    issues: topIssues,
+    columnCounts,
+    connected: isConnected,
   });
 }
 
@@ -969,9 +999,12 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
     if (notifyChanges) notifyRemoteChanges(nextIssueColumns);
     knownIssueColumns = nextIssueColumns;
 
-    // Tray badge only makes sense for "what's on my plate" (assigned mode) -
-    // authored-but-reassigned tickets aren't work waiting on you.
-    updateTrayStatus(boardMode === 'assigned' ? issues.filter(i => getColumnFromStatus(i.status) !== 'done') : []);
+    // Tray/popover only reflects "what's on my plate" (assigned mode) -
+    // authored-but-reassigned tickets aren't work waiting on you, and
+    // showing their columns there would be a different board's data
+    // wearing this one's chrome.
+    const unfinished = boardMode === 'assigned' ? issues.filter(i => getColumnFromStatus(i.status) !== 'done') : [];
+    updateTrayStatus(unfinished, boardMode === 'assigned' ? apiState : {});
 
     // Merge with existing state instead of overwriting it: keep any
     // manually-added local card (no issueId) exactly where it was, and
@@ -1048,6 +1081,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initUpdateListener();
   window.reddieAPI.onShowSettings(() => openSettings());
   window.reddieAPI.onShowUpdater(() => checkForUpdates());
+  window.reddieAPI.onOpenIssueFromTray((issueId) => openIssueDetail(issueId));
   document.body.classList.add(`platform-${window.reddieAPI.platform}`);
 
   // main.js already resolved config precedence at startup (.env, else its

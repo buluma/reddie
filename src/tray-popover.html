@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reddie</title>
+  <style>
+    /* Colors match styles.css's dark theme (--bg-color/--text-color/etc.) -
+       duplicated rather than shared on purpose, so this small standalone
+       surface doesn't depend on the main window's stylesheet or theme
+       state (see tray-popover.js for why it doesn't read localStorage). */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #16161f;
+      color: #e8e8ec;
+      font-size: 13px;
+      overflow: hidden;
+      user-select: none;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .conn-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff453a;
+    }
+    .conn-dot.connected {
+      background: #30d158;
+    }
+    .columns {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .stacked-bar {
+      display: flex;
+      height: 6px;
+      border-radius: 3px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+      margin-bottom: 8px;
+    }
+    .stacked-bar div {
+      height: 100%;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: #9a9aa5;
+    }
+    .legend-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .tickets {
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    .ticket-row {
+      padding: 8px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ticket-row:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .ticket-id {
+      color: #9a9aa5;
+      margin-right: 4px;
+    }
+    .empty {
+      padding: 16px 14px;
+      color: #9a9aa5;
+      text-align: center;
+    }
+    .footer {
+      display: flex;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .footer button {
+      flex: 1;
+      background: none;
+      border: none;
+      color: #e8e8ec;
+      font-size: 12px;
+      padding: 10px 0;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .footer button:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .footer button + button {
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .footer button.quit {
+      color: #ff453a;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="header-title">Reddie</span>
+    <span id="conn-dot" class="conn-dot"></span>
+  </div>
+  <div class="columns" id="columns"></div>
+  <div class="tickets" id="tickets"></div>
+  <div class="footer">
+    <button onclick="trayAPI.openSettings()">Settings</button>
+    <button onclick="trayAPI.checkForUpdates()">Updates</button>
+    <button class="quit" onclick="trayAPI.quit()">Quit</button>
+  </div>
+  <script src="tray-popover.js"></script>
+</body>
+</html>

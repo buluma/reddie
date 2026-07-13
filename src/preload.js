@@ -39,4 +39,7 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   onShowUpdater: (callback) => {
     ipcRenderer.on('show-updater', () => callback());
   },
+  onOpenIssueFromTray: (callback) => {
+    ipcRenderer.on('open-issue-detail-from-tray', (event, issueId) => callback(issueId));
+  },
 });
