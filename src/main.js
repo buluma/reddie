@@ -5,6 +5,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { RedmineClient, buildColumnMapping, sameInstanceImagePath } = require('./redmine-client');
 const { loadPersistedConfig, persistConfig } = require('./config-store');
 const { autoUpdater } = require('electron-updater');
+const timer = require('./timer');
 
 // Auto-download/install is off on purpose: macOS's Squirrel.Mac (the
 // updater apply step electron-updater uses under the hood) requires the
@@ -131,9 +132,30 @@ let popoverWindow = null;
 // Last payload pushed from the renderer (see update-tray-status below) -
 // kept around so a freshly-opened popover has something to show
 // immediately instead of a blank frame until the next board refresh.
-let latestTrayData = { count: 0, urgency: 'none', issues: [], columnCounts: {}, connected: false };
+let latestTrayData = { count: 0, urgency: 'none', issues: [], columnCounts: {}, connected: false, activeTimer: null };
 const trayIconCache = {};
 const TRAY_COLORS = { none: '#808080', low: '#30d158', medium: '#ff9f0a', high: '#ff453a' };
+
+// SHA-24: the running/paused time-tracker state, one active timer across the
+// whole app. Lives here (not the renderer) for the same reason latestTrayData
+// does - it must survive the window being hidden-to-tray and a renderer
+// reload. In-memory only for now: a timer does not survive a full app quit,
+// same scope as the rest of the tray state.
+let timerState = timer.initialTimerState();
+
+// Pushes the current timer to both the main window (for the issue detail
+// widget) and the tray popover (piggybacked onto latestTrayData, the same
+// object update-tray-status already maintains) - called after every timer
+// transition so all surfaces stay in sync without polling.
+function broadcastTimerState() {
+  latestTrayData = { ...latestTrayData, activeTimer: timerState.status === 'idle' ? null : timerState };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('timer-state-changed', timerState);
+  }
+  if (popoverWindow && !popoverWindow.isDestroyed()) {
+    popoverWindow.webContents.send('tray-data', latestTrayData);
+  }
+}
 
 // Pre-rendered PNGs (src/tray-icons/dot-<urgency>.png + @2x) rather than an
 // SVG data URL - nativeImage.createFromDataURL only decodes raster formats
@@ -647,6 +669,68 @@ ipcMain.handle('add-timelog', async (event, { issueId, hours, activityId, commen
   }
 });
 
+// SHA-24 time tracker. All five actions run the pure state machine in
+// timer.js and report the invalid-transition errors it throws straight back
+// to the renderer (e.g. "a timer is already active for ticket #X") - the
+// renderer decides what to do about that (offer to cancel/complete the other
+// one), this layer just relays it, same {error} convention as every other
+// handler here.
+ipcMain.handle('timer-get-state', async () => timerState);
+
+ipcMain.handle('timer-start', async (event, { ticketId, subject }) => {
+  try {
+    timerState = timer.start(timerState, { ticketId, subject }, Date.now());
+    broadcastTimerState();
+    return { ok: true, state: timerState };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('timer-pause', async () => {
+  try {
+    timerState = timer.pause(timerState, Date.now());
+    broadcastTimerState();
+    return { ok: true, state: timerState };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('timer-reset', async () => {
+  try {
+    timerState = timer.reset(timerState);
+    broadcastTimerState();
+    return { ok: true, state: timerState };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('timer-cancel', async () => {
+  // cancel() never throws (a no-op when already idle) - nothing to catch.
+  timerState = timer.cancel(timerState);
+  broadcastTimerState();
+  return { ok: true, state: timerState };
+});
+
+ipcMain.handle('timer-complete', async (event, { activityId, comment } = {}) => {
+  try {
+    const { state, submission } = timer.complete(timerState, Date.now());
+    const hours = timer.msToHours(submission.elapsedMs);
+    // Only commit the state transition to idle AFTER the Redmine write
+    // succeeds - if addTimeEntry fails (network, validation), timerState is
+    // left exactly as it was so the elapsed time isn't silently lost and the
+    // user can retry.
+    await client.addTimeEntry(submission.ticketId, { hours, activityId, comment });
+    timerState = state;
+    broadcastTimerState();
+    return { ok: true, state: timerState, hours };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) {
     return { error: 'Updates only work in a packaged build, not npm start' };
@@ -674,6 +758,10 @@ ipcMain.on('update-tray-status', (event, payload) => {
     issues: payload.issues || [],
     columnCounts: payload.columnCounts || {},
     connected: !!payload.connected,
+    // This handler rebuilds latestTrayData wholesale from a board-refresh
+    // payload, which knows nothing about the timer - carry it over rather
+    // than losing it on every refresh.
+    activeTimer: latestTrayData.activeTimer,
   };
   updateTrayAppearance(latestTrayData.count, latestTrayData.urgency);
   buildTrayContextMenu(latestTrayData.issues);

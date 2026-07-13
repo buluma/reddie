@@ -42,4 +42,13 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   onOpenIssueFromTray: (callback) => {
     ipcRenderer.on('open-issue-detail-from-tray', (event, issueId) => callback(issueId));
   },
+  getTimerState: () => ipcRenderer.invoke('timer-get-state'),
+  startTimer: (ticketId, subject) => ipcRenderer.invoke('timer-start', { ticketId, subject }),
+  pauseTimer: () => ipcRenderer.invoke('timer-pause'),
+  resetTimer: () => ipcRenderer.invoke('timer-reset'),
+  cancelTimer: () => ipcRenderer.invoke('timer-cancel'),
+  completeTimer: (activityId, comment) => ipcRenderer.invoke('timer-complete', { activityId, comment }),
+  onTimerStateChanged: (callback) => {
+    ipcRenderer.on('timer-state-changed', (event, state) => callback(state));
+  },
 });

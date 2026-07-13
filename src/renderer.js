@@ -335,6 +335,7 @@ function renderIssueDetail(issue, timeEntries, members) {
     ${customFieldsHtml ? `<div class="detail-section"><h3>Custom fields</h3>${customFieldsHtml}</div>` : ''}
     <div class="detail-section">
       <h3>Time logged${totalHours ? ` — ${totalHours}h total` : ''}</h3>
+      <div id="timer-widget" class="timer-widget"></div>
       ${timeEntriesHtml}
       <div class="timelog-form">
         <input type="number" id="timelog-hours" class="timelog-hours" placeholder="Hours" min="0.01" max="24" step="0.25">
@@ -357,6 +358,7 @@ function renderIssueDetail(issue, timeEntries, members) {
   `;
 
   hydrateAuthenticatedImages(document.getElementById('detail-body'));
+  renderTimerWidget();
 }
 
 let currentDetailIssueId = null;
@@ -368,6 +370,15 @@ let currentDetailMembers = [];
 // #detail-subject skip a no-op PUT when focus just left the field without
 // an actual edit.
 let currentDetailSubject = null;
+
+// SHA-24 time tracker. One active timer app-wide, held in main.js
+// (reddieTimer's pure state shape) - mirrored here so the widget can render
+// without an IPC round trip on every tick. `timerTickInterval` repaints the
+// elapsed display locally once a second while running; main.js only pushes a
+// fresh state on an actual transition (start/pause/reset/cancel/complete),
+// not every second.
+let currentTimerState = reddieTimer.initialTimerState();
+let timerTickInterval = null;
 
 async function openIssueDetail(issueId) {
   currentDetailIssueId = issueId;
@@ -464,6 +475,118 @@ function closeIssueDetail() {
   currentDetailIssueId = null;
   currentDetailMembers = [];
   currentDetailSubject = null;
+  stopTimerTick();
+}
+
+function stopTimerTick() {
+  if (timerTickInterval) {
+    clearInterval(timerTickInterval);
+    timerTickInterval = null;
+  }
+}
+
+// Renders the timer widget for whichever ticket is open in the detail view.
+// Three cases: no timer running anywhere (offer Start), a timer running for
+// THIS ticket (Pause/Resume/Reset/Cancel/Complete), or a timer running for a
+// DIFFERENT ticket (can't start a second one - offer to go finish it, or
+// discard it and start here instead).
+function renderTimerWidget() {
+  const el = document.getElementById('timer-widget');
+  if (!el) return; // detail view not open, or a re-render raced a close
+  stopTimerTick();
+
+  if (currentTimerState.status === 'idle') {
+    el.innerHTML = `<button class="secondary-btn" onclick="startTimerHere()">▶ Start timer</button>`;
+    return;
+  }
+
+  const mine = String(currentTimerState.ticketId) === String(currentDetailIssueId);
+  if (!mine) {
+    el.innerHTML = `
+      <div class="timer-other-note">
+        Timer running for <span class="issue-id-link" onclick="openIssueDetail('${currentTimerState.ticketId}')">#${currentTimerState.ticketId}</span>
+        <span id="timer-other-elapsed" class="timer-elapsed"></span>
+        <button class="secondary-btn" onclick="discardOtherTimerAndStartHere()">Discard it & start here</button>
+      </div>`;
+    const paint = () => {
+      const span = document.getElementById('timer-other-elapsed');
+      if (span) span.textContent = reddieTimer.formatElapsed(reddieTimer.elapsedMs(currentTimerState, Date.now()));
+    };
+    paint();
+    timerTickInterval = setInterval(paint, 1000);
+    return;
+  }
+
+  const running = currentTimerState.status === 'running';
+  el.innerHTML = `
+    <div class="timer-active">
+      <span id="timer-mine-elapsed" class="timer-elapsed"></span>
+      ${running
+        ? `<button class="secondary-btn" onclick="pauseTimerHere()">⏸ Pause</button>`
+        : `<button class="secondary-btn" onclick="startTimerHere()">▶ Resume</button>`}
+      <button class="secondary-btn" onclick="resetTimerHere()">↺ Reset</button>
+      <button class="secondary-btn" onclick="cancelTimerHere()">✕ Cancel</button>
+      <select id="timer-complete-activity" class="timelog-activity">
+        ${activities.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
+      </select>
+      <button class="timelog-submit-btn" onclick="completeTimerHere()">✓ Complete</button>
+    </div>`;
+  const paint = () => {
+    const span = document.getElementById('timer-mine-elapsed');
+    if (span) span.textContent = reddieTimer.formatElapsed(reddieTimer.elapsedMs(currentTimerState, Date.now()));
+  };
+  paint();
+  if (running) timerTickInterval = setInterval(paint, 1000);
+}
+
+function applyTimerResult(result) {
+  if (result && result.error) {
+    showToast(result.error, 'error');
+    return false;
+  }
+  currentTimerState = result.state;
+  renderTimerWidget();
+  return true;
+}
+
+async function startTimerHere() {
+  const result = await window.reddieAPI.startTimer(currentDetailIssueId, currentDetailSubject);
+  applyTimerResult(result);
+}
+
+async function pauseTimerHere() {
+  applyTimerResult(await window.reddieAPI.pauseTimer());
+}
+
+async function resetTimerHere() {
+  applyTimerResult(await window.reddieAPI.resetTimer());
+}
+
+async function cancelTimerHere() {
+  applyTimerResult(await window.reddieAPI.cancelTimer());
+}
+
+async function discardOtherTimerAndStartHere() {
+  await window.reddieAPI.cancelTimer();
+  await startTimerHere();
+}
+
+async function completeTimerHere() {
+  const activitySelect = document.getElementById('timer-complete-activity');
+  const activityId = activitySelect ? parseInt(activitySelect.value, 10) : null;
+  if (!activityId) {
+    showToast('No activity selected', 'error');
+    return;
+  }
+  const result = await window.reddieAPI.completeTimer(activityId);
+  if (!applyTimerResult(result)) return;
+  showToast(`Logged ${result.hours}h`, 'success');
+  const issueId = currentDetailIssueId;
+  if (!issueId) return;
+  const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
+  if (refreshed && !refreshed.error && refreshed.issue) {
+    renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
+  }
 }
 
 async function saveSubjectEdit() {
@@ -1114,6 +1237,12 @@ window.submitNewTicket = submitNewTicket;
 window.checkForUpdates = checkForUpdates;
 window.closeUpdateModal = closeUpdateModal;
 window.openReleasesFromModal = openReleasesFromModal;
+window.startTimerHere = startTimerHere;
+window.pauseTimerHere = pauseTimerHere;
+window.resetTimerHere = resetTimerHere;
+window.cancelTimerHere = cancelTimerHere;
+window.discardOtherTimerAndStartHere = discardOtherTimerAndStartHere;
+window.completeTimerHere = completeTimerHere;
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
@@ -1122,6 +1251,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.reddieAPI.onShowUpdater(() => checkForUpdates());
   window.reddieAPI.onOpenIssueFromTray((issueId) => openIssueDetail(issueId));
   document.body.classList.add(`platform-${window.reddieAPI.platform}`);
+
+  // SHA-24: main.js owns the single active timer (survives window
+  // hide-to-tray/reload) - pick up whatever's already running on launch, then
+  // stay in sync via push. Only repaints the widget; harmless no-op when the
+  // detail view isn't open (renderTimerWidget bails if #timer-widget isn't
+  // in the DOM).
+  currentTimerState = await window.reddieAPI.getTimerState();
+  window.reddieAPI.onTimerStateChanged((state) => {
+    currentTimerState = state;
+    renderTimerWidget();
+  });
 
   // main.js already resolved config precedence at startup (.env, else its
   // own encrypted persisted store - see config-store.js) before this

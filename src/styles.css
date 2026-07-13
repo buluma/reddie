@@ -832,6 +832,27 @@ header h1 {
   cursor: default;
 }
 
+/* SHA-24 time tracker widget */
+.timer-widget {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--modal-border);
+}
+
+.timer-active, .timer-other-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.timer-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 3.5em;
+}
+
 /* Column mapping */
 .mapping-row {
   display: flex;

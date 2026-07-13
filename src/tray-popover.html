@@ -38,6 +38,45 @@
     .conn-dot.connected {
       background: #30d158;
     }
+    .timer-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+    .timer-row:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .timer-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff9f0a;
+      flex-shrink: 0;
+    }
+    .timer-dot.running {
+      background: #30d158;
+      animation: timer-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes timer-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .timer-elapsed {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+    .timer-subject {
+      color: #9a9aa5;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #active-timer {
+      display: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
     .columns {
       padding: 12px 14px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -125,6 +164,7 @@
     <span class="header-title">Reddie</span>
     <span id="conn-dot" class="conn-dot"></span>
   </div>
+  <div id="active-timer"></div>
   <div class="columns" id="columns"></div>
   <div class="tickets" id="tickets"></div>
   <div class="footer">
@@ -132,6 +172,7 @@
     <button onclick="trayAPI.checkForUpdates()">Updates</button>
     <button class="quit" onclick="trayAPI.quit()">Quit</button>
   </div>
+  <script src="timer.js"></script>
   <script src="tray-popover.js"></script>
 </body>
 </html>

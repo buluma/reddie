@@ -35,8 +35,43 @@ function renderTickets(issues) {
   `).join('');
 }
 
+// SHA-24: the active-timer row ticks locally on its own 1s interval rather
+// than waiting for main.js to push a new frame every second - main.js only
+// pushes on a real state transition (start/pause/reset/cancel/complete), so
+// without a local tick the elapsed number would sit frozen between pushes.
+let timerTickInterval = null;
+
+function renderActiveTimer(activeTimer) {
+  const el = document.getElementById('active-timer');
+  if (timerTickInterval) {
+    clearInterval(timerTickInterval);
+    timerTickInterval = null;
+  }
+  if (!activeTimer) {
+    el.innerHTML = '';
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const paint = () => {
+    const elapsed = reddieTimer.formatElapsed(reddieTimer.elapsedMs(activeTimer, Date.now()));
+    const paused = activeTimer.status === 'paused';
+    el.innerHTML = `
+      <div class="timer-row" onclick="trayAPI.openIssue(${activeTimer.ticketId})">
+        <span class="timer-dot${paused ? '' : ' running'}"></span>
+        <span class="timer-elapsed">${elapsed}</span>
+        <span class="timer-subject">#${activeTimer.ticketId} ${escapeHtml(activeTimer.subject || '')}${paused ? ' (paused)' : ''}</span>
+      </div>`;
+  };
+  paint();
+  if (activeTimer.status === 'running') {
+    timerTickInterval = setInterval(paint, 1000);
+  }
+}
+
 trayAPI.onTrayData((data) => {
   document.getElementById('conn-dot').className = 'conn-dot' + (data.connected ? ' connected' : '');
+  renderActiveTimer(data.activeTimer || null);
   renderColumns(data.columnCounts || {});
   renderTickets(data.issues || []);
   // Fixed window height left dead space below the footer whenever there
