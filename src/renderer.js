@@ -157,14 +157,38 @@ function escapeHtml(str) {
 // Textile, this renders the raw source close to as-is (Textile markup
 // mostly looks like plain text to a Markdown parser), just without any
 // formatting - not a regression from the previous plain-escaped display.
+// Body text format. `textFormatSetting` is the user's choice ('auto' |
+// 'markdown' | 'textile', from config); `detectedFormat` is what the loaded
+// issue bodies look like, used when the setting is 'auto'. Redmine's
+// text_formatting is instance-wide and not exposed over REST (see
+// text-format.js), so this is the best we can do client-side.
+let textFormatSetting = 'auto';
+let detectedFormat = 'markdown';
+function effectiveTextFormat() {
+  return reddieTextFormat.resolveFormat(textFormatSetting, detectedFormat);
+}
+
+async function loadTextFormatSetting() {
+  const config = await window.reddieAPI.getConfig();
+  textFormatSetting = config.textFormat || 'auto';
+}
+
 // `attachments` (the issue's attachment list) lets inline image references in
 // the body - Markdown `![](name)` or Redmine's Textile `!name!` - be rewritten
 // to the real attachment content_url before parsing, so they actually render
-// instead of showing as a missing image / literal text. See inline-images.js.
-function renderMarkdown(text, attachments) {
+// instead of showing as a missing image / literal text (see inline-images.js).
+// The body is then rendered with whichever parser matches the instance's
+// format and sanitized before it reaches innerHTML.
+function renderBody(text, attachments) {
   if (!text) return '';
-  const resolved = reddieInlineImages.resolveInlineAttachmentImages(text, attachments);
-  const html = marked.parse(resolved, { breaks: true });
+  const format = effectiveTextFormat();
+  // Expand Redmine macros (e.g. {{collapse}}) and resolve inline attachment
+  // image refs to real content_urls before the body reaches the parser.
+  const expanded = reddieMacros.expandRedmineMacros(text, format);
+  const resolved = reddieInlineImages.resolveInlineAttachmentImages(expanded, attachments);
+  const html = format === 'textile'
+    ? textile.parse(resolved)
+    : marked.parse(resolved, { breaks: true });
   return DOMPurify.sanitize(html);
 }
 
@@ -247,7 +271,7 @@ function renderIssueDetail(issue, timeEntries, members) {
           <strong>${escapeHtml((j.user && j.user.name) || 'Unknown')}</strong>
           <span class="journal-date">${formatDateTime(j.created_on)}</span>
         </div>
-        <div class="journal-notes markdown-body">${renderMarkdown(j.notes, issue.attachments)}</div>
+        <div class="journal-notes markdown-body">${renderBody(j.notes, issue.attachments)}</div>
       </div>
     `).join('') || '<div class="detail-empty">No comments yet.</div>';
 
@@ -305,7 +329,7 @@ function renderIssueDetail(issue, timeEntries, members) {
     </div>
     <div class="detail-section">
       <h3>Description</h3>
-      <div class="detail-description markdown-body">${issue.description ? renderMarkdown(issue.description, issue.attachments) : '<span class="detail-empty">No description.</span>'}</div>
+      <div class="detail-description markdown-body">${issue.description ? renderBody(issue.description, issue.attachments) : '<span class="detail-empty">No description.</span>'}</div>
     </div>
     ${subtasksHtml ? `<div class="detail-section"><h3>Related tickets</h3>${subtasksHtml}</div>` : ''}
     ${customFieldsHtml ? `<div class="detail-section"><h3>Custom fields</h3>${customFieldsHtml}</div>` : ''}
@@ -546,6 +570,7 @@ function openSettings() {
   window.reddieAPI.getConfig().then(config => {
     document.getElementById('redmine-base').value = config.redmineBaseUrl || 'https://redmine.nasctech.com';
     document.getElementById('redmine-api-key').value = config.redmineApiKey || '';
+    document.getElementById('text-format').value = config.textFormat || 'auto';
   });
 }
 
@@ -723,11 +748,13 @@ async function saveColumnMappingOverrides() {
 async function saveSettings() {
   const newConfig = {
     redmineBaseUrl: document.getElementById('redmine-base').value,
-    redmineApiKey: document.getElementById('redmine-api-key').value
+    redmineApiKey: document.getElementById('redmine-api-key').value,
+    textFormat: document.getElementById('text-format').value
   };
 
   // Save to main process
   const result = await window.reddieAPI.saveConfig(newConfig);
+  textFormatSetting = newConfig.textFormat || 'auto';
 
   if (result.error) {
     setConnectionStatus('error', result.error);
@@ -986,6 +1013,9 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
     }
 
     const issues = response.items || [];
+    // Instance-wide format guess for the 'auto' setting - the board list
+    // already carries each issue's description, so re-detect on every refresh.
+    detectedFormat = reddieTextFormat.detectTextFormat(issues.map((i) => i.description));
     const apiState = {};
     columns.forEach(id => { apiState[id] = []; });
     const nextIssueColumns = {};
@@ -1110,6 +1140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadColumnMapping();
   await loadActivities();
   await loadPriorities();
+  await loadTextFormatSetting();
   await loadFromAPI();
 
   // Auto-refresh: skip a tick rather than yank the board out from under an

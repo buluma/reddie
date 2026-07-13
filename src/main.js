@@ -41,6 +41,9 @@ let config = {
   redmineBaseUrl: DEFAULT_REDMINE_BASE_URL,
   redmineApiKey: DEFAULT_REDMINE_API_KEY,
   columnOverrides: {},
+  // How to render issue/comment bodies: 'auto' (guess from content),
+  // 'markdown', or 'textile'. Instance-wide; see text-format.js.
+  textFormat: 'auto',
 };
 
 let client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);

@@ -54,8 +54,8 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 
 ## Rendering
 
-- Description and comments render as Markdown (`marked` + `DOMPurify` sanitization), not plain escaped text — matches how most modern Redmine instances (default `text_formatting` since 3.3) actually store ticket text. A Textile-configured instance will render close to as-is, just without formatting — not a regression from the previous plain-text display.
-- Images embedded in rendered Markdown that point at the configured Redmine instance are fetched with the same API-key auth as everything else and swapped in as data URLs (a plain `<img>` can't send that header) — cached per session. Images pointing elsewhere are left alone, unauthenticated, so the API key never gets sent to a third-party host.
+- Description and comments render with `DOMPurify` sanitization as either **Markdown** (`marked`) or **Textile** (`textile-js`) — Redmine's `text_formatting` is an instance-wide setting the REST API doesn't expose (`/settings.json` is admin-only), so Settings → Text format picks it: Auto (guessed from the loaded bodies' markup), Markdown, or Textile. Auto keeps a plain-Markdown instance working while correctly rendering a Textile instance's headings/bold/lists.
+- Images embedded in a rendered body that point at the configured Redmine instance are fetched with the same API-key auth as everything else and swapped in as data URLs (a plain `<img>` can't send that header) — cached per session (bounded LRU). Inline references by filename (Markdown `![](name)` or Textile `!name!`) are resolved against the issue's attachments to the real `content_url` first. Images pointing elsewhere are left alone, unauthenticated, so the API key never gets sent to a third-party host.
 
 ## Not yet supported
 
