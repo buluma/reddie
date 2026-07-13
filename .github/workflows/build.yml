@@ -41,7 +41,19 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run lint
+
       - run: npm test
+
+      # Electron needs a display for the e2e window to launch; only Linux
+      # runners get a virtual one via xvfb-run. macOS/Windows GitHub runners
+      # have a real display and run it directly.
+      - name: E2E (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:e2e
+      - name: E2E (macOS/Windows)
+        if: runner.os != 'Linux'
+        run: npm run test:e2e
 
       - name: Build
         # Tag pushes publish a real GitHub Release (electron-updater checks
