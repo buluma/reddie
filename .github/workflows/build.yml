@@ -33,9 +33,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6.4.0
         with:
           node-version: 22
 
@@ -70,7 +70,7 @@ jobs:
           # warning on first run, not a hard block like macOS Gatekeeper).
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: reddie-${{ matrix.os }}
           path: ${{ matrix.artifact-path }}
