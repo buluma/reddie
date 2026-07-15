@@ -250,6 +250,7 @@ function formatDateTime(value) {
 function renderIssueDetail(issue, timeEntries, members) {
   currentDetailSubject = issue.subject || `Issue #${issue.id}`;
   document.getElementById('detail-subject').textContent = currentDetailSubject;
+  currentDetailDescription = issue.description || '';
 
   // The current assignee might not hold project membership anymore (left
   // the project, role revoked) - keep them selectable anyway so the
@@ -325,11 +326,15 @@ function renderIssueDetail(issue, timeEntries, members) {
       <div><strong>Assignee</strong> <select id="assignee-select" class="assignee-select" onchange="changeAssignee(this.value)">${assigneeOptionsHtml}</select></div>
       <div><strong>Priority</strong> <select id="priority-select" class="assignee-select" onchange="changePriority(this.value)">${priorityOptionsHtml}</select></div>
       <div><strong>Author</strong> ${escapeHtml((issue.author && issue.author.name) || '—')}</div>
-      <div><strong>Due</strong> ${formatDate(issue.due_date)}</div>
+      <div><strong>Start</strong> <input type="date" id="start-date-input" class="assignee-select" value="${issue.start_date || ''}" onchange="changeIssueField('start_date', this.value)"></div>
+      <div><strong>Due</strong> <input type="date" id="due-date-input" class="assignee-select" value="${issue.due_date || ''}" onchange="changeIssueField('due_date', this.value)"></div>
+      <div><strong>% Done</strong> <input type="number" id="done-ratio-input" class="assignee-select" min="0" max="100" step="1" value="${issue.done_ratio != null ? issue.done_ratio : 0}" onchange="changeIssueField('done_ratio', this.value === '' ? 0 : Number(this.value))"></div>
+      <div><strong>Estimation (h)</strong> <input type="number" id="estimated-hours-input" class="assignee-select" min="0" step="0.25" placeholder="—" value="${issue.estimated_hours != null ? issue.estimated_hours : ''}" onchange="changeIssueField('estimated_hours', this.value === '' ? '' : Number(this.value))"></div>
     </div>
     <div class="detail-section">
       <h3>Description</h3>
-      <div class="detail-description markdown-body">${issue.description ? renderBody(issue.description, issue.attachments) : '<span class="detail-empty">No description.</span>'}</div>
+      <div class="detail-description markdown-body" id="description-display" onclick="editDescription()">${issue.description ? renderBody(issue.description, issue.attachments) : '<span class="detail-empty">No description. Click to add one.</span>'}</div>
+      <textarea id="description-input" class="description-textarea" style="display:none" onblur="saveDescriptionEdit()"></textarea>
     </div>
     ${subtasksHtml ? `<div class="detail-section"><h3>Related tickets</h3>${subtasksHtml}</div>` : ''}
     ${customFieldsHtml ? `<div class="detail-section"><h3>Custom fields</h3>${customFieldsHtml}</div>` : ''}
@@ -370,6 +375,10 @@ let currentDetailMembers = [];
 // #detail-subject skip a no-op PUT when focus just left the field without
 // an actual edit.
 let currentDetailSubject = null;
+// Raw markdown source of the open issue's description - #description-display
+// only ever holds the *rendered* HTML, so editing needs the source stashed
+// separately (same reasoning as currentDetailSubject above).
+let currentDetailDescription = null;
 
 // SHA-24 time tracker. One active timer app-wide, held in main.js
 // (reddieTimer's pure state shape) - mirrored here so the widget can render
@@ -441,6 +450,55 @@ async function changePriority(value) {
   }
 }
 
+// Shared by the start/due date, % done, and estimation inputs - each is a
+// single-field PUT via the generic updateIssue endpoint, same pattern as
+// changePriority/changeAssignee above.
+async function changeIssueField(field, value) {
+  if (!currentDetailIssueId) return;
+  try {
+    const result = await window.reddieAPI.updateIssue(currentDetailIssueId, { [field]: value });
+    if (result && result.error) {
+      throw new Error(result.error);
+    }
+    showToast('Issue updated', 'success');
+  } catch (err) {
+    showToast(`Couldn't update issue: ${err.message || err}`, 'error');
+    await openIssueDetail(currentDetailIssueId);
+  }
+}
+
+function editDescription() {
+  const display = document.getElementById('description-display');
+  const input = document.getElementById('description-input');
+  if (!display || !input) return;
+  input.value = currentDetailDescription;
+  display.style.display = 'none';
+  input.style.display = 'block';
+  input.focus();
+}
+
+async function saveDescriptionEdit() {
+  if (!currentDetailIssueId) return;
+  const display = document.getElementById('description-display');
+  const input = document.getElementById('description-input');
+  const description = input.value.trim();
+  input.style.display = 'none';
+  display.style.display = 'block';
+  if (description === currentDetailDescription) return;
+  try {
+    const result = await window.reddieAPI.updateIssue(currentDetailIssueId, { description });
+    if (result && result.error) {
+      throw new Error(result.error);
+    }
+    currentDetailDescription = description;
+    showToast('Description updated', 'success');
+    await openIssueDetail(currentDetailIssueId);
+  } catch (err) {
+    showToast(`Couldn't update description: ${err.message || err}`, 'error');
+    await openIssueDetail(currentDetailIssueId);
+  }
+}
+
 async function uploadAttachment() {
   if (!currentDetailIssueId) return;
   const btn = document.getElementById('attachment-upload-btn');
@@ -475,6 +533,7 @@ function closeIssueDetail() {
   currentDetailIssueId = null;
   currentDetailMembers = [];
   currentDetailSubject = null;
+  currentDetailDescription = null;
   stopTimerTick();
 }
 
@@ -1228,6 +1287,9 @@ window.changeAssignee = changeAssignee;
 window.changePriority = changePriority;
 window.uploadAttachment = uploadAttachment;
 window.saveSubjectEdit = saveSubjectEdit;
+window.changeIssueField = changeIssueField;
+window.editDescription = editDescription;
+window.saveDescriptionEdit = saveDescriptionEdit;
 window.setBoardMode = setBoardMode;
 window.openNewTicket = openNewTicket;
 window.closeNewTicket = closeNewTicket;

@@ -15,10 +15,12 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 
 ## Ticket detail view
 
-- Full ticket: description, project, author, due date, GitHub-style activity/comment history, time entries
+- Full ticket: description, project, author, start/due date, % done, estimation, GitHub-style activity/comment history, time entries
 - **Subject** — click the title to edit, PUTs `subject` on blur (no-op if unchanged)
+- **Description** — click the rendered body to edit the raw markup, PUTs `description` on blur (no-op if unchanged)
 - **Assignee** — dropdown of the project's members, PUTs `assigned_to_id`
 - **Priority** — dropdown of the instance's `issue_priorities`, PUTs `priority_id`
+- **Start date / Due date / % Done / Estimation** — inline inputs, PUT on change (clearing a date field sends an empty string, per Redmine's clear-vs-leave-untouched PUT semantics)
 - **Status** — via drag on the board (not the detail view)
 - **Comments** — post directly from the detail view
 - **Time tracking** — log hours manually against any of the instance's active time-entry activities, or run a **live timer**: Start/Pause/Resume/Reset/Cancel/Complete on the ticket you're working, one active timer app-wide (starting a different ticket's timer prompts you to discard the current one first). Complete submits the elapsed hours as a real time entry. The timer survives closing the window to the tray and shows live in the tray popover (ticket, elapsed, running/paused) — it does not survive a full app quit.

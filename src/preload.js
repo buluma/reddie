@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   fetchPriorities: () => ipcRenderer.invoke('fetch-priorities'),
   updatePriority: (issueId, priorityId) => ipcRenderer.invoke('update-priority', { issueId, priorityId }),
   updateSubject: (issueId, subject) => ipcRenderer.invoke('update-subject', { issueId, subject }),
+  updateIssue: (issueId, fields) => ipcRenderer.invoke('update-issue', { issueId, fields }),
   uploadAttachment: (issueId) => ipcRenderer.invoke('upload-attachment', issueId),
   addTimelog: (issueId, entry) => ipcRenderer.invoke('add-timelog', { issueId, ...entry }),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
