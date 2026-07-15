@@ -54,6 +54,36 @@ function initTheme() {
   applyTheme(localStorage.getItem('reddie-theme') || 'dark');
 }
 
+// Window transparency (macOS vibrancy). Unlike theme, the authoritative
+// value lives in main.js's config (it has to be read before createWindow()
+// runs - see main.js) rather than localStorage, so this is loaded async
+// from getConfig() instead of being ready synchronously at paint time.
+let windowTransparencyEnabled = false;
+
+function applyTransparency(enabled) {
+  document.documentElement.dataset.transparency = enabled ? 'on' : 'off';
+  const btn = document.getElementById('transparency-toggle');
+  if (btn) btn.classList.toggle('active', enabled);
+}
+
+async function loadWindowTransparencySetting() {
+  const config = await window.reddieAPI.getConfig();
+  windowTransparencyEnabled = !!config.windowTransparency;
+  applyTransparency(windowTransparencyEnabled);
+}
+
+async function toggleTransparency() {
+  windowTransparencyEnabled = !windowTransparencyEnabled;
+  applyTransparency(windowTransparencyEnabled);
+  await window.reddieAPI.saveWindowTransparency(windowTransparencyEnabled);
+  showToast(
+    windowTransparencyEnabled
+      ? 'Transparency enabled — restart reddie to apply the window blur'
+      : 'Transparency disabled — restart reddie to fully apply',
+    'success',
+  );
+}
+
 // Toasts
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
@@ -1279,6 +1309,7 @@ window.closeColumnMapping = closeColumnMapping;
 window.saveColumnMappingOverrides = saveColumnMappingOverrides;
 window.saveSettings = saveSettings;
 window.toggleTheme = toggleTheme;
+window.toggleTransparency = toggleTransparency;
 window.openIssueDetail = openIssueDetail;
 window.closeIssueDetail = closeIssueDetail;
 window.postComment = postComment;
@@ -1308,6 +1339,7 @@ window.completeTimerHere = completeTimerHere;
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
+  loadWindowTransparencySetting();
   initUpdateListener();
   window.reddieAPI.onShowSettings(() => openSettings());
   window.reddieAPI.onShowUpdater(() => checkForUpdates());

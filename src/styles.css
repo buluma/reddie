@@ -31,6 +31,24 @@
   --input-border: #ddd;
 }
 
+/* Only meaningful with the BrowserWindow's own `vibrancy`/`transparent`
+   options also on (see main.js createWindow()) - otherwise this just
+   shows whatever's behind the window in CSS terms, i.e. nothing. Panels
+   stay semi-opaque rather than fully see-through so text stays readable
+   over the native macOS blur. */
+:root[data-transparency="on"][data-theme="dark"] {
+  --bg-color: transparent;
+  --card-bg: rgba(30, 30, 40, 0.45);
+  --modal-bg: rgba(22, 22, 31, 0.75);
+  --input-bg: rgba(255, 255, 255, 0.08);
+}
+
+:root[data-transparency="on"][data-theme="light"] {
+  --card-bg: rgba(255, 255, 255, 0.35);
+  --modal-bg: rgba(255, 255, 255, 0.75);
+  --input-bg: rgba(255, 255, 255, 0.5);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -361,6 +379,10 @@ header h1 {
 }
 
 .theme-toggle:hover {
+  opacity: 1;
+}
+
+.theme-toggle.active {
   opacity: 1;
 }
 
