@@ -281,6 +281,14 @@ class RedmineClient {
     return (result.project && result.project.issue_categories) || [];
   }
 
+  // Unlike categories/custom_fields, the direct /versions.json endpoint
+  // isn't permission-restricted for a regular API key (confirmed against a
+  // real instance) - no include= workaround needed here.
+  async listProjectVersions(projectId) {
+    const result = await this.get(`/projects/${projectId}/versions.json`);
+    return result.versions || [];
+  }
+
   createIssue({ projectId, trackerId, subject, description, assigneeId, customFields }) {
     return this.post('/issues.json', {
       issue: {

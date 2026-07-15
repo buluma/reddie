@@ -394,6 +394,18 @@ function renderIssueDetail(issue, timeEntries, members) {
     ...categoryOptions.map(c => `<option value="${c.id}" ${issue.category && issue.category.id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`),
   ].join('');
 
+  // Target version - Redmine's field is `fixed_version` on the issue,
+  // `fixed_version_id` on PUT. Optional, same clear-via-empty-string
+  // handling as category.
+  const versionOptions = [...currentDetailVersions];
+  if (issue.fixed_version && !versionOptions.some(v => v.id === issue.fixed_version.id)) {
+    versionOptions.unshift(issue.fixed_version);
+  }
+  const versionOptionsHtml = [
+    `<option value="">—</option>`,
+    ...versionOptions.map(v => `<option value="${v.id}" ${issue.fixed_version && issue.fixed_version.id === v.id ? 'selected' : ''}>${escapeHtml(v.name)}</option>`),
+  ].join('');
+
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-badges">
       <span class="detail-badge">${escapeHtml((issue.status && issue.status.name) || '—')}</span>
@@ -404,6 +416,7 @@ function renderIssueDetail(issue, timeEntries, members) {
       <div><strong>Priority</strong> <select id="priority-select" class="assignee-select" onchange="changePriority(this.value)">${priorityOptionsHtml}</select></div>
       <div><strong>Tracker</strong> <select id="tracker-select" class="assignee-select" onchange="changeIssueField('tracker_id', Number(this.value))">${trackerOptionsHtml}</select></div>
       <div><strong>Category</strong> <select id="category-select" class="assignee-select" onchange="changeIssueField('category_id', this.value === '' ? '' : Number(this.value))">${categoryOptionsHtml}</select></div>
+      <div><strong>Target version</strong> <select id="version-select" class="assignee-select" onchange="changeIssueField('fixed_version_id', this.value === '' ? '' : Number(this.value))">${versionOptionsHtml}</select></div>
       <div><strong>Author</strong> ${escapeHtml((issue.author && issue.author.name) || '—')}</div>
       <div><strong>Start</strong> <input type="date" id="start-date-input" class="assignee-select" value="${issue.start_date || ''}" onchange="changeIssueField('start_date', this.value)"></div>
       <div><strong>Due</strong> <input type="date" id="due-date-input" class="assignee-select" value="${issue.due_date || ''}" onchange="changeIssueField('due_date', this.value)"></div>
@@ -450,9 +463,10 @@ let currentDetailIssueId = null;
 // to re-fetch the project's member list just to re-render the same
 // assignee dropdown.
 let currentDetailMembers = [];
-// Same lifecycle as currentDetailMembers, for the tracker/category dropdowns.
+// Same lifecycle as currentDetailMembers, for the tracker/category/version dropdowns.
 let currentDetailTrackers = [];
 let currentDetailCategories = [];
+let currentDetailVersions = [];
 // The subject as last loaded from Redmine - lets the blur handler on
 // #detail-subject skip a no-op PUT when focus just left the field without
 // an actual edit.
@@ -486,16 +500,18 @@ async function openIssueDetail(issueId) {
   }
 
   const projectId = result.issue.project && result.issue.project.id;
-  const [membersResult, trackersResult, categoriesResult] = projectId
+  const [membersResult, trackersResult, categoriesResult, versionsResult] = projectId
     ? await Promise.all([
         window.reddieAPI.fetchProjectMembers(projectId),
         window.reddieAPI.fetchProjectTrackers(projectId),
         window.reddieAPI.fetchProjectCategories(projectId),
+        window.reddieAPI.fetchProjectVersions(projectId),
       ])
-    : [{ items: [] }, { items: [] }, { items: [] }];
+    : [{ items: [] }, { items: [] }, { items: [] }, { items: [] }];
   currentDetailMembers = (membersResult && membersResult.items) || [];
   currentDetailTrackers = (trackersResult && trackersResult.items) || [];
   currentDetailCategories = (categoriesResult && categoriesResult.items) || [];
+  currentDetailVersions = (versionsResult && versionsResult.items) || [];
   renderIssueDetail(result.issue, result.timeEntries, currentDetailMembers);
 }
 
@@ -926,6 +942,10 @@ function resolveJournalValue(name, value) {
   if (name === 'category_id') {
     const c = currentDetailCategories.find(c => String(c.id) === String(value));
     return c ? c.name : `#${value}`;
+  }
+  if (name === 'fixed_version_id') {
+    const v = currentDetailVersions.find(v => String(v.id) === String(value));
+    return v ? v.name : `#${value}`;
   }
   if (name === 'is_private') return value === '1' || value === 'true' || value === true ? 'Yes' : 'No';
   return String(value);
