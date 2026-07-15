@@ -39,6 +39,7 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 - Redmine URL + API key via `.env` or Settings — no other backend required, ever
 - API key encrypted at rest via Electron's `safeStorage` (Keychain/DPAPI/libsecret), not plaintext
 - Per-status column mapping overrides (see Board, above)
+- **Window transparency** (👻 toggle, header) — native macOS vibrancy (`under-window`), off by default. `transparent` is a constructor-only Electron option, so toggling this needs an app restart to apply. macOS only; no-op elsewhere.
 
 ## Distribution & updates
 

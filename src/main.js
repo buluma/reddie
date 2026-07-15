@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { RedmineClient, buildColumnMapping, sameInstanceImagePath } = require('./redmine-client');
-const { loadPersistedConfig, persistConfig } = require('./config-store');
+const { loadPersistedConfig, persistConfig, loadWindowTransparencySetting } = require('./config-store');
 const { autoUpdater } = require('electron-updater');
 const timer = require('./timer');
 
@@ -45,6 +45,9 @@ let config = {
   // How to render issue/comment bodies: 'auto' (guess from content),
   // 'markdown', or 'textile'. Instance-wide; see text-format.js.
   textFormat: 'auto',
+  // Native macOS vibrancy - see the createWindow() comment for why this
+  // has to be read before the window is created, not just before connect().
+  windowTransparency: false,
 };
 
 let client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
@@ -386,6 +389,13 @@ function createWindow() {
     // fake it, since faking it well needs real custom minimize/maximize/
     // close controls this app doesn't have.
     ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
+    // `transparent` is a constructor-only option in Electron - it can't be
+    // flipped on an existing window, which is why the Settings toggle for
+    // this needs an app restart to take effect. Vibrancy is macOS-only;
+    // other platforms just get an opaque window regardless of the setting.
+    ...(process.platform === 'darwin' && config.windowTransparency
+      ? { transparent: true, backgroundColor: '#00000000', vibrancy: 'under-window' }
+      : {}),
     icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -427,6 +437,12 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Read ahead of the full config load below (which is gated behind the
+  // .env-api-key check) - windowTransparency has to be known before
+  // createWindow() runs since `transparent` can't be set on an existing
+  // window. Uses the narrow reader, not loadPersistedConfig(), so this
+  // never touches the encrypted API key / Keychain on a plain launch.
+  config.windowTransparency = loadWindowTransparencySetting();
   createWindow();
   createTray();
 
@@ -521,6 +537,12 @@ ipcMain.handle('save-column-overrides', async (event, overrides) => {
   persistConfig(config);
   columnMapping = buildColumnMapping(lastStatuses, config.columnOverrides);
   return { ok: true, columnMapping };
+});
+
+ipcMain.handle('save-window-transparency', async (event, enabled) => {
+  config.windowTransparency = !!enabled;
+  persistConfig(config);
+  return { ok: true };
 });
 
 ipcMain.handle('fetch-issues', async () => {

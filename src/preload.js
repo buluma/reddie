@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   getColumnMapping: () => ipcRenderer.invoke('get-column-mapping'),
   fetchStatuses: () => ipcRenderer.invoke('fetch-statuses'),
   saveColumnOverrides: (overrides) => ipcRenderer.invoke('save-column-overrides', overrides),
+  saveWindowTransparency: (enabled) => ipcRenderer.invoke('save-window-transparency', enabled),
   fetchIssues: (params) => ipcRenderer.invoke('fetch-issues', params),
   fetchAuthoredIssues: () => ipcRenderer.invoke('fetch-authored-issues'),
   fetchIssueDetail: (issueId) => ipcRenderer.invoke('fetch-issue-detail', issueId),

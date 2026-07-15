@@ -51,11 +51,16 @@ function loadPersistedConfig() {
     // text-format.js). Not sensitive, stored plain. Defaults to 'auto' so a
     // spread merge in main.js never overwrites the default with undefined.
     textFormat: raw.textFormat || 'auto',
+    // Native macOS vibrancy + transparent: true on the BrowserWindow - read
+    // at createWindow() time only, so toggling this needs an app restart to
+    // take effect (Electron's `transparent` option is constructor-only).
+    // Not sensitive, stored plain. Defaults to false.
+    windowTransparency: raw.windowTransparency || false,
   };
 }
 
-function persistConfig({ redmineBaseUrl, redmineApiKey, columnOverrides, textFormat }) {
-  const out = { redmineBaseUrl, columnOverrides: columnOverrides || {} };
+function persistConfig({ redmineBaseUrl, redmineApiKey, columnOverrides, textFormat, windowTransparency }) {
+  const out = { redmineBaseUrl, columnOverrides: columnOverrides || {}, windowTransparency: !!windowTransparency };
   if (textFormat) out.textFormat = textFormat;
   if (redmineApiKey) {
     if (safeStorage.isEncryptionAvailable()) {
@@ -68,4 +73,20 @@ function persistConfig({ redmineBaseUrl, redmineApiKey, columnOverrides, textFor
   fs.writeFileSync(getConfigPath(), JSON.stringify(out, null, 2), { mode: 0o600 });
 }
 
-module.exports = { loadPersistedConfig, persistConfig };
+// Narrow read used before createWindow() - avoids loadPersistedConfig()'s
+// safeStorage.decryptString() call (and, on an ad-hoc-signed dev build, the
+// interactive Keychain prompt that can come with it) for a plain boolean
+// flag that has nothing to do with the API key.
+function loadWindowTransparencySetting() {
+  const configPath = getConfigPath();
+  if (!fs.existsSync(configPath)) return false;
+  try {
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    return !!raw.windowTransparency;
+  } catch (err) {
+    console.error('Failed to read persisted config:', err.message);
+    return false;
+  }
+}
+
+module.exports = { loadPersistedConfig, persistConfig, loadWindowTransparencySetting };
