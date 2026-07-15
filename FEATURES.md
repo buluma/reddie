@@ -23,6 +23,8 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 - **Start date / Due date / % Done / Estimation** — inline inputs, PUT on change (clearing a date field sends an empty string, per Redmine's clear-vs-leave-untouched PUT semantics)
 - **Tracker** — dropdown of the project's enabled trackers, PUTs `tracker_id`
 - **Category** — dropdown of the project's issue categories, PUTs `category_id` (clearable — a ticket doesn't have to carry one)
+- **Target version** — dropdown of the project's versions, PUTs `fixed_version_id` (clearable). Not yet exercised against a real populated dropdown/write round-trip — the dev instance currently has zero versions configured on any accessible project; verified instead that the endpoint (`/projects/{id}/versions.json`) responds correctly and the dropdown degrades to "—" gracefully with none defined
+- **is_private** — deliberately not implemented: PUT silently no-ops on the dev instance (returns 204, value never changes) rather than erroring, almost certainly a Redmine role-permission gate reddie has no way to detect via the REST API. A toggle that looks like it worked but didn't would be worse than no toggle.
 - **Status** — via drag on the board (not the detail view)
 - **Comments** — post directly from the detail view
 - **Activity / changelog** — full history, not just comments: attribute-only journal entries (status/date/tracker/category/etc. changes with no comment text) now render alongside actual comments, with status/priority/tracker/category/assignee IDs resolved to names where reddie already has the lookup cached; other fields show the raw old→new value

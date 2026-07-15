@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   fetchProjects: () => ipcRenderer.invoke('fetch-projects'),
   fetchProjectTrackers: (projectId) => ipcRenderer.invoke('fetch-project-trackers', projectId),
   fetchProjectCategories: (projectId) => ipcRenderer.invoke('fetch-project-categories', projectId),
+  fetchProjectVersions: (projectId) => ipcRenderer.invoke('fetch-project-versions', projectId),
   fetchTrackerCustomFields: (projectId, trackerId) => ipcRenderer.invoke('fetch-tracker-custom-fields', { projectId, trackerId }),
   createIssue: (data) => ipcRenderer.invoke('create-issue', data),
   addComment: (issueId, comment) => ipcRenderer.invoke('add-comment', { issueId, comment }),
