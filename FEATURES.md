@@ -21,11 +21,14 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 - **Assignee** — dropdown of the project's members, PUTs `assigned_to_id`
 - **Priority** — dropdown of the instance's `issue_priorities`, PUTs `priority_id`
 - **Start date / Due date / % Done / Estimation** — inline inputs, PUT on change (clearing a date field sends an empty string, per Redmine's clear-vs-leave-untouched PUT semantics)
+- **Tracker** — dropdown of the project's enabled trackers, PUTs `tracker_id`
+- **Category** — dropdown of the project's issue categories, PUTs `category_id` (clearable — a ticket doesn't have to carry one)
 - **Status** — via drag on the board (not the detail view)
 - **Comments** — post directly from the detail view
+- **Activity / changelog** — full history, not just comments: attribute-only journal entries (status/date/tracker/category/etc. changes with no comment text) now render alongside actual comments, with status/priority/tracker/category/assignee IDs resolved to names where reddie already has the lookup cached; other fields show the raw old→new value
 - **Time tracking** — log hours manually against any of the instance's active time-entry activities, or run a **live timer**: Start/Pause/Resume/Reset/Cancel/Complete on the ticket you're working, one active timer app-wide (starting a different ticket's timer prompts you to discard the current one first). Complete submits the elapsed hours as a real time entry. The timer survives closing the window to the tray and shows live in the tray popover (ticket, elapsed, running/paused) — it does not survive a full app quit.
 - **Attachments** — view existing ones, upload new files (Redmine's two-step upload-then-attach flow)
-- **Sub-tasks** — parent (if any) and children (if any) shown as clickable links that jump straight to that ticket's own detail view; read-only, no assigning/creating a sub-task relationship from reddie
+- **Related tickets** — parent/children (sub-tasks) and general relations (relates to/blocks/blocked by/duplicates/precedes/follows/copied to-from) shown as clickable links that jump straight to that ticket's own detail view; read-only, no creating/editing relationships from reddie
 - **Custom fields** — non-empty ones shown read-only (most fields are blank on most tickets)
 
 ## Creating tickets

@@ -675,6 +675,12 @@ header h1 {
   line-height: 1.4;
 }
 
+.journal-detail-line {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
 /* Rendered Markdown (description/comments) - marked.parse() output is
    block-level HTML, not preformatted text, so this styles it like normal
    prose rather than relying on white-space: pre-wrap (the previous plain-

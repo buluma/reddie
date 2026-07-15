@@ -584,6 +584,15 @@ ipcMain.handle('fetch-project-trackers', async (event, projectId) => {
   }
 });
 
+ipcMain.handle('fetch-project-categories', async (event, projectId) => {
+  try {
+    const categories = await client.listProjectCategories(projectId);
+    return { items: categories };
+  } catch (err) {
+    return { items: [], error: err.message };
+  }
+});
+
 ipcMain.handle('fetch-tracker-custom-fields', async (event, { projectId, trackerId }) => {
   try {
     const fields = await client.listTrackerCustomFields(projectId, trackerId);

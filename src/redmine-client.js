@@ -273,6 +273,14 @@ class RedmineClient {
     return (result.project && result.project.trackers) || [];
   }
 
+  // /issue_categories.json (direct endpoint) 403s for a regular API key on
+  // this instance, same restriction as /custom_fields.json above - the
+  // project-scoped include= works instead, same fix as listProjectTrackers.
+  async listProjectCategories(projectId) {
+    const result = await this.get(`/projects/${projectId}.json?include=issue_categories`);
+    return (result.project && result.project.issue_categories) || [];
+  }
+
   createIssue({ projectId, trackerId, subject, description, assigneeId, customFields }) {
     return this.post('/issues.json', {
       issue: {

@@ -38,6 +38,17 @@ async function loadPriorities() {
   priorities = (result && result.items) || [];
 }
 
+// Issue statuses for resolving status_id in the changelog (see
+// journalsHtml) - same instance-wide list openColumnMapping already fetches
+// transiently, cached here instead since the changelog needs it on every
+// issue detail render, not just when Settings > Column Mapping is open.
+let statuses = [];
+
+async function loadStatuses() {
+  const result = await window.reddieAPI.fetchStatuses();
+  statuses = (result && result.items) || [];
+}
+
 // Theme
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -295,16 +306,20 @@ function renderIssueDetail(issue, timeEntries, members) {
   ].join('');
 
   const journalsHtml = (issue.journals || [])
-    .filter(j => j.notes)
-    .map(j => `
+    .filter(j => j.notes || (j.details && j.details.length))
+    .map(j => {
+      const detailsHtml = (j.details || []).map(d => `<div class="journal-detail-line">${journalDetailLine(d)}</div>`).join('');
+      return `
       <div class="journal-entry">
         <div class="journal-meta">
           <strong>${escapeHtml((j.user && j.user.name) || 'Unknown')}</strong>
           <span class="journal-date">${formatDateTime(j.created_on)}</span>
         </div>
-        <div class="journal-notes markdown-body">${renderBody(j.notes, issue.attachments)}</div>
+        ${detailsHtml}
+        ${j.notes ? `<div class="journal-notes markdown-body">${renderBody(j.notes, issue.attachments)}</div>` : ''}
       </div>
-    `).join('') || '<div class="detail-empty">No comments yet.</div>';
+    `;
+    }).join('') || '<div class="detail-empty">No activity yet.</div>';
 
   const timeEntriesHtml = (timeEntries || [])
     .map(t => `
@@ -326,6 +341,16 @@ function renderIssueDetail(issue, timeEntries, members) {
   const subtasksHtml = [
     issue.parent ? `<div class="subtask-row">↑ <span class="issue-id-link" onclick="openIssueDetail('${issue.parent.id}')">#${issue.parent.id}</span></div>` : '',
     ...(issue.children || []).map(c => `<div class="subtask-row">↳ <span class="issue-id-link" onclick="openIssueDetail('${c.id}')">#${c.id}</span> ${escapeHtml(c.subject)}</div>`),
+    // Redmine reports relation_type from the issue_id ("from") side - flip
+    // to the inverse label (RELATION_LABELS_INVERSE) when this issue is the
+    // issue_to_id side, so "blocks" reads as "blocked by" from that end
+    // instead of implying this issue blocks the other one.
+    ...(issue.relations || []).map(r => {
+      const isFrom = String(r.issue_id) === String(issue.id);
+      const otherId = isFrom ? r.issue_to_id : r.issue_id;
+      const label = (isFrom ? RELATION_LABELS : RELATION_LABELS_INVERSE)[r.relation_type] || r.relation_type;
+      return `<div class="subtask-row">${escapeHtml(label)} <span class="issue-id-link" onclick="openIssueDetail('${otherId}')">#${otherId}</span></div>`;
+    }),
   ].join('');
 
   // Most custom fields are blank on most tickets - only show ones that
@@ -346,15 +371,39 @@ function renderIssueDetail(issue, timeEntries, members) {
     .map(p => `<option value="${p.id}" ${issue.priority && issue.priority.id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`)
     .join('');
 
+  // Same "keep the current value selectable even if it's not in the
+  // project's live list" reasoning as priorityOptions above - a ticket can
+  // carry a tracker/category that's since been disabled for this project.
+  const trackerOptions = [...currentDetailTrackers];
+  if (issue.tracker && !trackerOptions.some(t => t.id === issue.tracker.id)) {
+    trackerOptions.unshift(issue.tracker);
+  }
+  const trackerOptionsHtml = trackerOptions
+    .map(t => `<option value="${t.id}" ${issue.tracker && issue.tracker.id === t.id ? 'selected' : ''}>${escapeHtml(t.name)}</option>`)
+    .join('');
+
+  // Unlike tracker, category is optional on a Redmine issue - the empty
+  // option clears it (changeIssueField sends '', which Redmine treats as
+  // clear, same as the date fields).
+  const categoryOptions = [...currentDetailCategories];
+  if (issue.category && !categoryOptions.some(c => c.id === issue.category.id)) {
+    categoryOptions.unshift(issue.category);
+  }
+  const categoryOptionsHtml = [
+    `<option value="">—</option>`,
+    ...categoryOptions.map(c => `<option value="${c.id}" ${issue.category && issue.category.id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`),
+  ].join('');
+
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-badges">
       <span class="detail-badge">${escapeHtml((issue.status && issue.status.name) || '—')}</span>
-      ${issue.tracker ? `<span class="detail-badge">${escapeHtml(issue.tracker.name)}</span>` : ''}
     </div>
     <div class="detail-meta">
       <div><strong>Project</strong> ${escapeHtml((issue.project && issue.project.name) || '—')}</div>
       <div><strong>Assignee</strong> <select id="assignee-select" class="assignee-select" onchange="changeAssignee(this.value)">${assigneeOptionsHtml}</select></div>
       <div><strong>Priority</strong> <select id="priority-select" class="assignee-select" onchange="changePriority(this.value)">${priorityOptionsHtml}</select></div>
+      <div><strong>Tracker</strong> <select id="tracker-select" class="assignee-select" onchange="changeIssueField('tracker_id', Number(this.value))">${trackerOptionsHtml}</select></div>
+      <div><strong>Category</strong> <select id="category-select" class="assignee-select" onchange="changeIssueField('category_id', this.value === '' ? '' : Number(this.value))">${categoryOptionsHtml}</select></div>
       <div><strong>Author</strong> ${escapeHtml((issue.author && issue.author.name) || '—')}</div>
       <div><strong>Start</strong> <input type="date" id="start-date-input" class="assignee-select" value="${issue.start_date || ''}" onchange="changeIssueField('start_date', this.value)"></div>
       <div><strong>Due</strong> <input type="date" id="due-date-input" class="assignee-select" value="${issue.due_date || ''}" onchange="changeIssueField('due_date', this.value)"></div>
@@ -401,6 +450,9 @@ let currentDetailIssueId = null;
 // to re-fetch the project's member list just to re-render the same
 // assignee dropdown.
 let currentDetailMembers = [];
+// Same lifecycle as currentDetailMembers, for the tracker/category dropdowns.
+let currentDetailTrackers = [];
+let currentDetailCategories = [];
 // The subject as last loaded from Redmine - lets the blur handler on
 // #detail-subject skip a no-op PUT when focus just left the field without
 // an actual edit.
@@ -434,8 +486,16 @@ async function openIssueDetail(issueId) {
   }
 
   const projectId = result.issue.project && result.issue.project.id;
-  const membersResult = projectId ? await window.reddieAPI.fetchProjectMembers(projectId) : { items: [] };
+  const [membersResult, trackersResult, categoriesResult] = projectId
+    ? await Promise.all([
+        window.reddieAPI.fetchProjectMembers(projectId),
+        window.reddieAPI.fetchProjectTrackers(projectId),
+        window.reddieAPI.fetchProjectCategories(projectId),
+      ])
+    : [{ items: [] }, { items: [] }, { items: [] }];
   currentDetailMembers = (membersResult && membersResult.items) || [];
+  currentDetailTrackers = (trackersResult && trackersResult.items) || [];
+  currentDetailCategories = (categoriesResult && categoriesResult.items) || [];
   renderIssueDetail(result.issue, result.timeEntries, currentDetailMembers);
 }
 
@@ -793,6 +853,99 @@ function closeSettings() {
 // Column mapping
 const COLUMN_LABELS = { backlog: 'Backlog', todo: 'To Do', 'in-progress': 'In Progress', done: 'Done' };
 
+// Issue relation types (relates/duplicates/blocks/precedes/follows/
+// copied_to, plus each one's inverse) - Redmine always reports relation_type
+// from the issue_id ("from") side, so the inverse map is needed when
+// rendering from the issue_to_id side (see subtasksHtml below).
+const RELATION_LABELS = {
+  relates: 'relates to',
+  duplicates: 'duplicates',
+  duplicated: 'duplicated by',
+  blocks: 'blocks',
+  blocked: 'blocked by',
+  precedes: 'precedes',
+  follows: 'follows',
+  copied_to: 'copied to',
+  copied_from: 'copied from',
+};
+const RELATION_LABELS_INVERSE = {
+  relates: 'relates to',
+  duplicates: 'duplicated by',
+  duplicated: 'duplicates',
+  blocks: 'blocked by',
+  blocked: 'blocks',
+  precedes: 'follows',
+  follows: 'precedes',
+  copied_to: 'copied from',
+  copied_from: 'copied to',
+};
+
+// Full changelog (journal.details) support - Redmine ships old_value/
+// new_value as raw IDs for reference fields, so anything reddie already has
+// a name lookup for (status/priority/current project's members) gets
+// resolved; everything else falls back to the raw value rather than
+// dropping the entry.
+const JOURNAL_FIELD_LABELS = {
+  status_id: 'Status',
+  priority_id: 'Priority',
+  assigned_to_id: 'Assignee',
+  tracker_id: 'Tracker',
+  category_id: 'Category',
+  parent_id: 'Parent',
+  subject: 'Subject',
+  description: 'Description',
+  start_date: 'Start date',
+  due_date: 'Due date',
+  done_ratio: '% Done',
+  estimated_hours: 'Estimation',
+  is_private: 'Private',
+  fixed_version_id: 'Target version',
+};
+
+function resolveJournalValue(name, value) {
+  if (value == null || value === '') return '—';
+  if (name === 'status_id') {
+    const s = statuses.find(s => String(s.id) === String(value));
+    return s ? s.name : `#${value}`;
+  }
+  if (name === 'priority_id') {
+    const p = priorities.find(p => String(p.id) === String(value));
+    return p ? p.name : `#${value}`;
+  }
+  if (name === 'assigned_to_id') {
+    // Only resolves against the currently open issue's project members -
+    // an old assignee who's since left the project falls back to the ID,
+    // same tradeoff as the assignee dropdown elsewhere in this view.
+    const m = currentDetailMembers.find(m => String(m.id) === String(value));
+    return m ? m.name : `user #${value}`;
+  }
+  if (name === 'tracker_id') {
+    const t = currentDetailTrackers.find(t => String(t.id) === String(value));
+    return t ? t.name : `#${value}`;
+  }
+  if (name === 'category_id') {
+    const c = currentDetailCategories.find(c => String(c.id) === String(value));
+    return c ? c.name : `#${value}`;
+  }
+  if (name === 'is_private') return value === '1' || value === 'true' || value === true ? 'Yes' : 'No';
+  return String(value);
+}
+
+// journal.details entries aren't all attribute changes (property can also
+// be 'attachment', 'relation', or 'cf' for a custom field) - those don't
+// have a human-friendly name lookup available client-side, so they render
+// with their raw property name rather than being silently dropped.
+function journalDetailLine(d) {
+  const label = JOURNAL_FIELD_LABELS[d.name] || d.name;
+  if (d.property !== 'attr') {
+    return escapeHtml(`${label} changed`);
+  }
+  if (d.name === 'description') {
+    return escapeHtml(`${label} updated`);
+  }
+  return `${escapeHtml(label)}: ${escapeHtml(resolveJournalValue(d.name, d.old_value))} → ${escapeHtml(resolveJournalValue(d.name, d.new_value))}`;
+}
+
 async function openColumnMapping() {
   document.getElementById('column-mapping-modal').classList.add('show');
   document.getElementById('column-mapping-body').innerHTML = '<div class="detail-loading">Loading…</div>';
@@ -980,6 +1133,7 @@ async function saveSettings() {
     await loadColumnMapping();
     await loadActivities();
     await loadPriorities();
+    await loadStatuses();
     await loadFromAPI();
   }
 }
@@ -1374,6 +1528,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadColumnMapping();
   await loadActivities();
   await loadPriorities();
+  await loadStatuses();
   await loadTextFormatSetting();
   await loadFromAPI();
 
