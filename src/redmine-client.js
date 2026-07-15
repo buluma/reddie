@@ -225,6 +225,15 @@ class RedmineClient {
     return this.put(`/issues/${issueId}.json`, { issue: { subject } });
   }
 
+  // Covers description, start_date, due_date, done_ratio, estimated_hours -
+  // all confirmed writable via PUT /issues/{id}.json on a real instance
+  // (redmine.nasctech.com). Pass only the fields being changed; an empty
+  // string clears a date/description, omitted keys are left untouched by
+  // Redmine.
+  updateIssue(issueId, fields) {
+    return this.put(`/issues/${issueId}.json`, { issue: fields });
+  }
+
   async uploadFile(buffer, filename, contentType) {
     // Redmine's attachment flow is two steps: upload the raw bytes to get
     // a one-time token, then reference that token from the issue update
