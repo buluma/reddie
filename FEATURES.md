@@ -16,6 +16,7 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 ## Ticket detail view
 
 - Full ticket: description, project, author, start/due date, % done, estimation, GitHub-style activity/comment history, time entries
+- **Ticket ID badge** — shown before the status badge, links out to the ticket on the connected Redmine instance
 - **Subject** — click the title to edit, PUTs `subject` on blur (no-op if unchanged)
 - **Description** — click the rendered body to edit the raw markup, PUTs `description` on blur (no-op if unchanged)
 - **Assignee** — dropdown of the project's members, PUTs `assigned_to_id`
@@ -44,7 +45,7 @@ Living list of what reddie currently supports, kept in sync with SHA-18 in Linea
 - Redmine URL + API key via `.env` or Settings — no other backend required, ever
 - API key encrypted at rest via Electron's `safeStorage` (Keychain/DPAPI/libsecret), not plaintext
 - Per-status column mapping overrides (see Board, above)
-- **Window transparency** (👻 toggle, header) — native macOS vibrancy (`under-window`), off by default. `transparent` is a constructor-only Electron option, so toggling this needs an app restart to apply. macOS only; no-op elsewhere.
+- **Window transparency** (👻 toggle, header) — native macOS vibrancy (`under-window`), off by default. `transparent` is a constructor-only Electron option, so toggling this needs an app restart to apply. macOS only; no-op elsewhere. Modals stay readable while transparent — background blur alone wasn't enough to keep board card text from bleeding through at low alpha, so modal panels use a much higher opacity than board cards while keeping a frosted-edge blur.
 
 ## Distribution & updates
 
