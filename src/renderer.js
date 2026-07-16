@@ -408,6 +408,7 @@ function renderIssueDetail(issue, timeEntries, members) {
 
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-badges">
+      <span class="detail-badge">#${issue.id}</span>
       <span class="detail-badge">${escapeHtml((issue.status && issue.status.name) || '—')}</span>
     </div>
     <div class="detail-meta">
