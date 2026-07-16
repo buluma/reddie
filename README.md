@@ -144,7 +144,7 @@ Bumps version, commits, tags (`vX.Y.Z`), pushes — triggers CI build for all pl
 4. Push (`git push origin feature/my-thing`).
 5. Open a Pull Request. CI must be green.
 
-See [CONVENTIONS.md](CONVENTIONS.md) for agent and human coding rules.
+See [CONVENTIONS.md](docs/CONVENTIONS.md) for agent and human coding rules.
 
 ## Changelog
 
