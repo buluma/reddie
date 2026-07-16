@@ -49,6 +49,16 @@ async function loadStatuses() {
   statuses = (result && result.items) || [];
 }
 
+// Base URL of the connected Redmine instance - lets the issue modal link
+// its ticket ID badge straight to the real ticket instead of just showing
+// the number as text.
+let redmineBaseUrl = '';
+
+async function loadRedmineBaseUrl() {
+  const config = await window.reddieAPI.getConfig();
+  redmineBaseUrl = (config && config.redmineBaseUrl || '').replace(/\/+$/, '');
+}
+
 // Theme
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -406,9 +416,16 @@ function renderIssueDetail(issue, timeEntries, members) {
     ...versionOptions.map(v => `<option value="${v.id}" ${issue.fixed_version && issue.fixed_version.id === v.id ? 'selected' : ''}>${escapeHtml(v.name)}</option>`),
   ].join('');
 
+  // Falls back to plain text if the base URL isn't loaded yet - href
+  // navigation away from index.html is caught by main.js's will-navigate
+  // handler and routed to the OS browser, same as rendered body links.
+  const idBadgeHtml = redmineBaseUrl
+    ? `<a href="${escapeHtml(redmineBaseUrl)}/issues/${issue.id}" class="detail-badge detail-badge-link">#${issue.id}</a>`
+    : `<span class="detail-badge">#${issue.id}</span>`;
+
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-badges">
-      <span class="detail-badge">#${issue.id}</span>
+      ${idBadgeHtml}
       <span class="detail-badge">${escapeHtml((issue.status && issue.status.name) || '—')}</span>
     </div>
     <div class="detail-meta">
@@ -1155,6 +1172,7 @@ async function saveSettings() {
     await loadActivities();
     await loadPriorities();
     await loadStatuses();
+    await loadRedmineBaseUrl();
     await loadFromAPI();
   }
 }
@@ -1550,6 +1568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadActivities();
   await loadPriorities();
   await loadStatuses();
+  await loadRedmineBaseUrl();
   await loadTextFormatSetting();
   await loadFromAPI();
 
