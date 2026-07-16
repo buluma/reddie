@@ -22,7 +22,7 @@
     "@playwright/test": "^1.61.1",
     "electron": "^43.1.1",
     "electron-builder": "^26.15.3",
-    "eslint": "^9.39.5",
+    "eslint": "^10.7.0",
     "globals": "^17.7.0",
     "vitest": "^4.1.10"
   },
