@@ -39,13 +39,19 @@
 :root[data-transparency="on"][data-theme="dark"] {
   --bg-color: transparent;
   --card-bg: rgba(30, 30, 40, 0.45);
-  --modal-bg: rgba(22, 22, 31, 0.75);
+  /* Deliberately much less see-through than --card-bg above - a modal
+     sits directly over dense board text (card titles), and blur alone
+     (see .modal-content's backdrop-filter) smears that text without
+     actually erasing it at low alpha, leaving it legible enough to be
+     distracting. A column card only ever sits over empty board
+     background, so it can get away with much lower alpha. */
+  --modal-bg: rgba(22, 22, 31, 0.94);
   --input-bg: rgba(255, 255, 255, 0.08);
 }
 
 :root[data-transparency="on"][data-theme="light"] {
   --card-bg: rgba(255, 255, 255, 0.35);
-  --modal-bg: rgba(255, 255, 255, 0.75);
+  --modal-bg: rgba(255, 255, 255, 0.94);
   --input-bg: rgba(255, 255, 255, 0.5);
 }
 
@@ -411,6 +417,12 @@ header h1 {
   width: 400px;
   max-width: 90%;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  /* Only visible when --modal-bg is semi-transparent (window
+     transparency on, see [data-transparency="on"] above) - a no-op over
+     the default opaque modal-bg, same as .column's blur(5px) for the
+     board. Without this, board cards behind the modal bled straight
+     through the text instead of reading as frosted glass. */
+  backdrop-filter: blur(20px);
 }
 
 .modal-header {
