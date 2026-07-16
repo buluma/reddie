@@ -377,8 +377,8 @@ function createTray() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1345,
+    height: 842,
     // Below this, the header's controls (search, New Ticket, mode toggle,
     // theme/settings) have nowhere left to wrap to and start overlapping
     // instead - this is the point past which CSS alone can't save it.
