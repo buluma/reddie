@@ -18,7 +18,7 @@
   },
   "type": "commonjs",
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
     "electron": "^41.2.2",
     "electron-builder": "^26.8.1",
