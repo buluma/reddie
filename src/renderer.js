@@ -318,7 +318,7 @@ function renderIssueDetail(issue, timeEntries, members) {
   const journalsHtml = (issue.journals || [])
     .filter(j => j.notes || (j.details && j.details.length))
     .map(j => {
-      const detailsHtml = (j.details || []).map(d => `<div class="journal-detail-line">${journalDetailLine(d)}</div>`).join('');
+      const detailsHtml = (j.details || []).map(d => `<div class="journal-detail-line">${escapeHtml(reddieIssueDetailHelpers.journalDetailLine(d, journalLookups()))}</div>`).join('');
       return `
       <div class="journal-entry">
         <div class="journal-meta">
@@ -351,14 +351,8 @@ function renderIssueDetail(issue, timeEntries, members) {
   const subtasksHtml = [
     issue.parent ? `<div class="subtask-row">↑ <span class="issue-id-link" onclick="openIssueDetail('${issue.parent.id}')">#${issue.parent.id}</span></div>` : '',
     ...(issue.children || []).map(c => `<div class="subtask-row">↳ <span class="issue-id-link" onclick="openIssueDetail('${c.id}')">#${c.id}</span> ${escapeHtml(c.subject)}</div>`),
-    // Redmine reports relation_type from the issue_id ("from") side - flip
-    // to the inverse label (RELATION_LABELS_INVERSE) when this issue is the
-    // issue_to_id side, so "blocks" reads as "blocked by" from that end
-    // instead of implying this issue blocks the other one.
     ...(issue.relations || []).map(r => {
-      const isFrom = String(r.issue_id) === String(issue.id);
-      const otherId = isFrom ? r.issue_to_id : r.issue_id;
-      const label = (isFrom ? RELATION_LABELS : RELATION_LABELS_INVERSE)[r.relation_type] || r.relation_type;
+      const { label, otherId } = reddieIssueDetailHelpers.relationLabel(r, issue.id);
       return `<div class="subtask-row">${escapeHtml(label)} <span class="issue-id-link" onclick="openIssueDetail('${otherId}')">#${otherId}</span></div>`;
     }),
   ].join('');
@@ -887,101 +881,18 @@ function closeSettings() {
 // Column mapping
 const COLUMN_LABELS = { backlog: 'Backlog', todo: 'To Do', 'in-progress': 'In Progress', done: 'Done' };
 
-// Issue relation types (relates/duplicates/blocks/precedes/follows/
-// copied_to, plus each one's inverse) - Redmine always reports relation_type
-// from the issue_id ("from") side, so the inverse map is needed when
-// rendering from the issue_to_id side (see subtasksHtml below).
-const RELATION_LABELS = {
-  relates: 'relates to',
-  duplicates: 'duplicates',
-  duplicated: 'duplicated by',
-  blocks: 'blocks',
-  blocked: 'blocked by',
-  precedes: 'precedes',
-  follows: 'follows',
-  copied_to: 'copied to',
-  copied_from: 'copied from',
-};
-const RELATION_LABELS_INVERSE = {
-  relates: 'relates to',
-  duplicates: 'duplicated by',
-  duplicated: 'duplicates',
-  blocks: 'blocked by',
-  blocked: 'blocks',
-  precedes: 'follows',
-  follows: 'precedes',
-  copied_to: 'copied from',
-  copied_from: 'copied to',
-};
-
-// Full changelog (journal.details) support - Redmine ships old_value/
-// new_value as raw IDs for reference fields, so anything reddie already has
-// a name lookup for (status/priority/current project's members) gets
-// resolved; everything else falls back to the raw value rather than
-// dropping the entry.
-const JOURNAL_FIELD_LABELS = {
-  status_id: 'Status',
-  priority_id: 'Priority',
-  assigned_to_id: 'Assignee',
-  tracker_id: 'Tracker',
-  category_id: 'Category',
-  parent_id: 'Parent',
-  subject: 'Subject',
-  description: 'Description',
-  start_date: 'Start date',
-  due_date: 'Due date',
-  done_ratio: '% Done',
-  estimated_hours: 'Estimation',
-  is_private: 'Private',
-  fixed_version_id: 'Target version',
-};
-
-function resolveJournalValue(name, value) {
-  if (value == null || value === '') return '—';
-  if (name === 'status_id') {
-    const s = statuses.find(s => String(s.id) === String(value));
-    return s ? s.name : `#${value}`;
-  }
-  if (name === 'priority_id') {
-    const p = priorities.find(p => String(p.id) === String(value));
-    return p ? p.name : `#${value}`;
-  }
-  if (name === 'assigned_to_id') {
-    // Only resolves against the currently open issue's project members -
-    // an old assignee who's since left the project falls back to the ID,
-    // same tradeoff as the assignee dropdown elsewhere in this view.
-    const m = currentDetailMembers.find(m => String(m.id) === String(value));
-    return m ? m.name : `user #${value}`;
-  }
-  if (name === 'tracker_id') {
-    const t = currentDetailTrackers.find(t => String(t.id) === String(value));
-    return t ? t.name : `#${value}`;
-  }
-  if (name === 'category_id') {
-    const c = currentDetailCategories.find(c => String(c.id) === String(value));
-    return c ? c.name : `#${value}`;
-  }
-  if (name === 'fixed_version_id') {
-    const v = currentDetailVersions.find(v => String(v.id) === String(value));
-    return v ? v.name : `#${value}`;
-  }
-  if (name === 'is_private') return value === '1' || value === 'true' || value === true ? 'Yes' : 'No';
-  return String(value);
-}
-
-// journal.details entries aren't all attribute changes (property can also
-// be 'attachment', 'relation', or 'cf' for a custom field) - those don't
-// have a human-friendly name lookup available client-side, so they render
-// with their raw property name rather than being silently dropped.
-function journalDetailLine(d) {
-  const label = JOURNAL_FIELD_LABELS[d.name] || d.name;
-  if (d.property !== 'attr') {
-    return escapeHtml(`${label} changed`);
-  }
-  if (d.name === 'description') {
-    return escapeHtml(`${label} updated`);
-  }
-  return `${escapeHtml(label)}: ${escapeHtml(resolveJournalValue(d.name, d.old_value))} → ${escapeHtml(resolveJournalValue(d.name, d.new_value))}`;
+// Relation-label flipping and changelog value resolution are pure logic,
+// extracted to issue-detail-helpers.js (window.reddieIssueDetailHelpers) so
+// they're unit-testable the same way buildColumnMapping/classifyStatus are.
+function journalLookups() {
+  return {
+    statuses,
+    priorities,
+    members: currentDetailMembers,
+    trackers: currentDetailTrackers,
+    categories: currentDetailCategories,
+    versions: currentDetailVersions,
+  };
 }
 
 async function openColumnMapping() {
