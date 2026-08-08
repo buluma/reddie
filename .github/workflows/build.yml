@@ -29,15 +29,18 @@ jobs:
             artifact-path: |
               dist/*.AppImage
               dist/*.deb
+          - node: [ 20, 22, 24 ]
 
     runs-on: ${{ matrix.os }}
 
+    name: Node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v7.0.1
 
       - uses: actions/setup-node@v7.0.0
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false # Disable automatic npm caching if not required
 
       - run: npm ci
 
