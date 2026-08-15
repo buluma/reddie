@@ -20,6 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        node: [20, 22, 24]
+        os: [macos-latest, windows-latest, ubuntu-latest]
         include:
           - os: macos-latest
             artifact-path: dist/*.dmg
@@ -29,11 +31,10 @@ jobs:
             artifact-path: |
               dist/*.AppImage
               dist/*.deb
-          - node: [ 20, 22, 24 ]
 
     runs-on: ${{ matrix.os }}
 
-    name: Node ${{ matrix.node }}
+    name: Node ${{ matrix.node }} (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -62,6 +63,11 @@ jobs:
         # Tag pushes publish a real GitHub Release (electron-updater checks
         # this - no release means no update feed). Manual dispatch runs
         # stay --publish=never so a test run never mints a release.
+        # Node is a test axis only, not a build input (Electron bundles its
+        # own Node) - only build/publish/upload once per OS on node 22, or
+        # every node job would try to publish the same installer filename
+        # to the same draft release and collide.
+        if: matrix.node == 22
         run: npx electron-builder --publish ${{ github.event_name == 'push' && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -74,6 +80,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - uses: actions/upload-artifact@v7.0.1
+        if: matrix.node == 22
         with:
           name: reddie-${{ matrix.os }}
           path: ${{ matrix.artifact-path }}
