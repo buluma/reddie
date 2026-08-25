@@ -4,7 +4,7 @@ Rules all AI agents must follow in this project.
 
 ## Always Green / Shift Left
 
-- **Preflight** (`npm test && npm run build`) must be green before forward work.
+- **Preflight** (`bun run test && bun run build`) must be green before forward work.
 - **CI** (`gh pr checks`) must be green before merging.
 - 1-10-100 rationale: fixing a convention violation at authoring costs 1; after commit costs 10; after merge costs 100.
 - Reproducible gate failures require **fix-or-log** (quick-fix → fix-bug). Never ignore a red gate.

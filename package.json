@@ -17,6 +17,11 @@
     "release:major": "npm version major -m \"chore(release): v%s\" && git push --follow-tags"
   },
   "type": "commonjs",
+  "trustedDependencies": [
+    "electron",
+    "electron-builder",
+    "electron-winstaller"
+  ],
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
