@@ -37,7 +37,7 @@ Download the latest build for your platform from [Releases](https://github.com/b
 ```bash
 git clone https://github.com/buluma/reddie.git
 cd reddie
-npm install
+bun install
 ```
 
 ## Setup
@@ -47,7 +47,7 @@ npm install
 ```bash
 cp .env.example .env
 # Edit .env with your Redmine URL and API key
-npm start
+bun start
 ```
 
 ### Option 2: In-app Settings
@@ -57,7 +57,7 @@ Launch the app, click the gear icon, and enter your Redmine URL + API key. Encry
 ## Usage
 
 ```bash
-npm start        # run from source
+bun start        # run from source
 ```
 
 - **Board** — Drag cards between columns. Real tickets update Redmine directly.
@@ -87,9 +87,9 @@ npm start        # run from source
 ## Development
 
 ```bash
-npm start              # run from source
-npm test               # vitest (single suite: redmine-client.test.js)
-npm run build          # electron-builder, output in dist/
+bun start              # run from source
+bun run test               # vitest (single suite: redmine-client.test.js)
+bun run build          # electron-builder, output in dist/
 ```
 
 ### Test strategy
@@ -97,13 +97,13 @@ npm run build          # electron-builder, output in dist/
 Tests are grounded in real Redmine API response shapes from `redmine.nasctech.com`, not invented fixtures. Pure-logic functions (`buildColumnMapping`, `classifyStatus`) get unit tests. IPC/HTTP glue is verified by launching the app and checking for console errors.
 
 ```bash
-npx vitest run src/__tests__/redmine-client.test.js   # single file
+bunx vitest run src/__tests__/redmine-client.test.js   # single file
 ```
 
 ## Building
 
 ```bash
-npm run build
+bun run build
 ```
 
 Builds for the current platform via [electron-builder](https://www.electron.build/). Output in `dist/`.
@@ -129,9 +129,9 @@ Builds are unsigned/ad-hoc. macOS shows a Gatekeeper warning (right-click → Op
 ## Releasing
 
 ```bash
-npm run release:patch   # 1.0.0 → 1.0.1
-npm run release:minor   # 1.0.0 → 1.1.0
-npm run release:major   # 1.0.0 → 2.0.0
+bun run release:patch   # 1.0.0 → 1.0.1
+bun run release:minor   # 1.0.0 → 1.1.0
+bun run release:major   # 1.0.0 → 2.0.0
 ```
 
 Bumps version, commits, tags (`vX.Y.Z`), pushes — triggers CI build for all platforms.
