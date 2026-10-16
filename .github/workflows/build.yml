@@ -70,7 +70,7 @@ jobs:
           # warning on first run, not a hard block like macOS Gatekeeper).
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: reddie-${{ matrix.os }}
           path: ${{ matrix.artifact-path }}
