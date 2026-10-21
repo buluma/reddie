@@ -184,10 +184,13 @@
 
   <div id="toast-container" class="toast-container"></div>
 
-  <script src="vendor/sortable.min.js"></script>
-  <script src="vendor/marked.min.js"></script>
-  <script src="vendor/textile.min.js"></script>
-  <script src="vendor/purify.min.js"></script>
+  <!-- Loaded straight from node_modules (not copied into src/) so the version
+       that runs is always the one package.json/bun.lock resolve, and
+       Dependabot bumps actually reach the app. -->
+  <script src="../node_modules/sortablejs/Sortable.min.js"></script>
+  <script src="../node_modules/marked/lib/marked.umd.js"></script>
+  <script src="../node_modules/textile-js/lib/textile.js"></script>
+  <script src="../node_modules/dompurify/dist/purify.min.js"></script>
   <script src="urgency.js"></script>
   <script src="inline-images.js"></script>
   <script src="redmine-macros.js"></script>
