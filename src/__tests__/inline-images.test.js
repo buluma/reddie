@@ -50,6 +50,45 @@ describe('resolveInlineAttachmentImages', () => {
     expect(resolveInlineAttachmentImages(null, [img('x.png', URL1)])).toBe('');
   });
 
+  // RDD-28: the real instance's editor emits Textile images with a style
+  // modifier - captured verbatim from #116222 / #109211 journals. The
+  // modifier must be kept (it's Textile's own image syntax) while the target
+  // after it is resolved.
+  it('rewrites a Textile image with a {style} modifier, keeping the modifier', () => {
+    const atts = [img('20260901-093830-351.png', URL1)];
+    expect(resolveInlineAttachmentImages('!{height: 639px; width: 1201px;}20260901-093830-351.png!', atts)).toBe(
+      `!{height: 639px; width: 1201px;}${URL1}!`,
+    );
+  });
+
+  it('rewrites Textile images with class/lang/alignment modifiers and a title', () => {
+    const atts = [img('a.png', URL1)];
+    expect(resolveInlineAttachmentImages('!(shot)[en]>a.png(the alt)!', atts)).toBe(`!(shot)[en]>${URL1}(the alt)!`);
+    expect(resolveInlineAttachmentImages('!<a.png!', atts)).toBe(`!<${URL1}!`);
+  });
+
+  it('matches a URL-encoded Textile target to the attachment filename (real #116222 reference)', () => {
+    const atts = [img('Screenshot 2026-08-11 at 09.48.46.png', URL1)];
+    expect(
+      resolveInlineAttachmentImages('!{height: 761px; width: 1301px;}Screenshot%202026-08-11%20at%2009.48.46.png!', atts),
+    ).toBe(`!{height: 761px; width: 1301px;}${URL1}!`);
+  });
+
+  it('matches a URL-encoded Markdown target to the attachment filename', () => {
+    const atts = [img('my shot.png', URL1)];
+    expect(resolveInlineAttachmentImages('![x](my%20shot.png)', atts)).toBe(`![x](${URL1})`);
+  });
+
+  it('leaves a malformed %-sequence that is not an attachment untouched', () => {
+    const atts = [img('a.png', URL1)];
+    expect(resolveInlineAttachmentImages('!50%off!', atts)).toBe('!50%off!');
+  });
+
+  it('still ignores a styled !{...}word! that is not an attachment', () => {
+    const atts = [img('a.png', URL1)];
+    expect(resolveInlineAttachmentImages('!{color: red}warning!', atts)).toBe('!{color: red}warning!');
+  });
+
   it('rewrites multiple Textile references in one body', () => {
     const url2 = 'http://redmine.example.com/attachments/download/2/b.png';
     const atts = [img('a.png', URL1), img('b.png', url2)];

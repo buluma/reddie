@@ -756,6 +756,11 @@ header h1 {
 .markdown-body img {
   max-width: 100%;
   border-radius: 6px;
+  /* Redmine's Textile editor stamps pasted images with an inline
+     style="height:…px;width:…px". max-width caps the width in the narrow
+     detail view, but a fixed inline height would then squash the image -
+     !important is the only way past an inline style. */
+  height: auto !important;
 }
 
 .time-entry-row, .attachment-row {
