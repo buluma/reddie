@@ -50,6 +50,6 @@ Never use these to skip a gate failure:
 ## Code Style
 
 - No framework, no build step for UI — vanilla JS, direct DOM manipulation.
-- `window.foo = foo` pattern for inline `onclick` handlers.
+- No inline `on*="..."` handlers: the CSP's `script-src 'self'` blocks them. Wire UI with `data-click` / `data-change` / `data-input` / `data-blur="<action>"` (plus `data-arg` when needed) and add the action to `UI_ACTIONS` in `renderer.js`; the tray popover uses `data-tray-action` / `data-issue-id` in `tray-popover.js`.
 - Module-level state in `main.js` (no separate server process).
 - `contextIsolation: true` / `nodeIntegration: false` — preload bridge only.

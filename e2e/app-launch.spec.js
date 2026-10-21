@@ -121,15 +121,15 @@ test.describe('app launch', () => {
     await expect(page.locator('#settings-modal')).not.toHaveClass(/show/);
   });
 
-  // RDD-25: both renderer pages carry a CSP. Inline handlers are still
-  // allowed ('unsafe-inline', the window.foo/onclick convention), but eval
-  // and renderer-side network requests are not - the renderer reaches
-  // Redmine only through IPC, so connect-src 'none' costs nothing. See
-  // cspDirectives() for why eval is checked on the declared policy.
-  test('main window CSP disallows eval and plugins', async () => {
+  // RDD-25: both renderer pages carry a CSP. Eval and renderer-side
+  // network requests are blocked - the renderer reaches Redmine only through
+  // IPC, so connect-src 'none' costs nothing. RDD-29 dropped 'unsafe-inline'
+  // from script-src too: UI wiring is delegated data-* actions, not inline
+  // on* attributes. See cspDirectives() for why eval is checked on the
+  // declared policy.
+  test('main window CSP disallows eval, inline scripts and plugins', async () => {
     const csp = await cspDirectives(page);
-    expect(csp['script-src']).toBeDefined();
-    expect(csp['script-src']).not.toContain("'unsafe-eval'");
+    expect(csp['script-src']).toEqual(["'self'"]);
     expect(csp['object-src']).toEqual(["'none'"]);
   });
 
@@ -145,21 +145,65 @@ test.describe('app launch', () => {
     expect(directive).toBe('connect-src');
   });
 
-  test('inline onclick handlers still work under the CSP', async () => {
+  test('delegated click, input and blur handlers work under the CSP', async () => {
     await page.click('.settings-btn');
     await expect(page.locator('#settings-modal')).toHaveClass(/show/);
     await page.click('#settings-modal .close-btn');
     await expect(page.locator('#settings-modal')).not.toHaveClass(/show/);
+
+    await page.click('.board-mode-btn[data-mode="authored"]');
+    await expect(page.locator('.board-mode-btn[data-mode="authored"]')).toHaveClass(/active/);
+    await page.click('.board-mode-btn[data-mode="assigned"]');
+    await expect(page.locator('.board-mode-btn[data-mode="assigned"]')).toHaveClass(/active/);
+
+    // A local scratch card: added by click, filtered out by input.
+    await page.click('#backlog .add-btn');
+    await expect(page.locator('#backlog-list .task-card')).toHaveCount(1);
+    // addTask() focuses and selects the card text; typing replaces it, and
+    // moving focus away (blur) must persist the rename.
+    await page.keyboard.type('blur-saved-card');
+    await page.click('#board-search');
+    expect(JSON.stringify(await page.evaluate(() => getState()))).toContain('blur-saved-card');
+    await page.fill('#board-search', 'zzz-no-such-card');
+    await expect(page.locator('#backlog-list .task-card')).toBeHidden();
+    await page.fill('#board-search', '');
+    await expect(page.locator('#backlog-list .task-card')).toBeVisible();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.click('#backlog-list .task-card .delete-task-btn');
+    await expect(page.locator('#backlog-list .task-card')).toHaveCount(0);
   });
 
-  test('tray popover CSP disallows eval, plugins and network', async () => {
+  test('no element carries an inline on* handler attribute', async () => {
+    const inline = await page.evaluate(() =>
+      [...document.querySelectorAll('*')].flatMap((el) => [...el.attributes].filter((a) => a.name.startsWith('on')).map((a) => `${el.tagName}[${a.name}]`)),
+    );
+    expect(inline).toEqual([]);
+  });
+
+  // Delegated actions are looked up by data-* attribute, so ticket text
+  // must not be able to carry one into the page: a description containing
+  // <span data-click="delete-task"> would otherwise become a live button.
+  test('rendered Redmine bodies are stripped of data-* attributes', async () => {
+    const html = await page.evaluate(() => renderBody('<span data-click="delete-task" data-arg="x">hi</span>', []));
+    expect(html).toContain('hi');
+    expect(html).not.toContain('data-');
+  });
+
+  test('tray popover CSP disallows eval, inline scripts, plugins and network', async () => {
     const popover = app.windows().find((w) => w.url().includes('tray-popover.html'));
     expect(popover).toBeTruthy();
     const csp = await cspDirectives(popover);
-    expect(csp['script-src']).toBeDefined();
-    expect(csp['script-src']).not.toContain("'unsafe-eval'");
+    expect(csp['script-src']).toEqual(["'self'"]);
     expect(csp['object-src']).toEqual(["'none'"]);
     expect(csp['connect-src']).toEqual(["'none'"]);
+  });
+
+  test('tray popover Settings button opens Settings in the main window', async () => {
+    const popover = app.windows().find((w) => w.url().includes('tray-popover.html'));
+    await popover.evaluate(() => document.querySelector('[data-tray-action="settings"]').click());
+    await expect(page.locator('#settings-modal')).toHaveClass(/show/);
+    await page.click('#settings-modal .close-btn');
+    await expect(page.locator('#settings-modal')).not.toHaveClass(/show/);
   });
 
   // RDD-30: the libraries the renderer runs must be the ones bun.lock

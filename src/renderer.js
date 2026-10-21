@@ -240,7 +240,10 @@ function renderBody(text, attachments) {
   const html = format === 'textile'
     ? textile.parse(resolved)
     : marked.parse(resolved, { breaks: true });
-  return DOMPurify.sanitize(html);
+  // ALLOW_DATA_ATTR: false - UI wiring is data-click/data-change/... (see
+  // UI_ACTIONS), so a data-* attribute in ticket text would otherwise turn
+  // into a live in-app action when clicked.
+  return DOMPurify.sanitize(html, { ALLOW_DATA_ATTR: false });
 }
 
 // Rendered Markdown images pointing at this Redmine instance's attachments
@@ -349,11 +352,11 @@ function renderIssueDetail(issue, timeEntries, members) {
   // only rendered if there's actually a relation, no empty section header
   // for the common case of a standalone ticket.
   const subtasksHtml = [
-    issue.parent ? `<div class="subtask-row">↑ <span class="issue-id-link" onclick="openIssueDetail('${issue.parent.id}')">#${issue.parent.id}</span></div>` : '',
-    ...(issue.children || []).map(c => `<div class="subtask-row">↳ <span class="issue-id-link" onclick="openIssueDetail('${c.id}')">#${c.id}</span> ${escapeHtml(c.subject)}</div>`),
+    issue.parent ? `<div class="subtask-row">↑ <span class="issue-id-link" data-click="open-issue" data-arg="${issue.parent.id}">#${issue.parent.id}</span></div>` : '',
+    ...(issue.children || []).map(c => `<div class="subtask-row">↳ <span class="issue-id-link" data-click="open-issue" data-arg="${c.id}">#${c.id}</span> ${escapeHtml(c.subject)}</div>`),
     ...(issue.relations || []).map(r => {
       const { label, otherId } = reddieIssueDetailHelpers.relationLabel(r, issue.id);
-      return `<div class="subtask-row">${escapeHtml(label)} <span class="issue-id-link" onclick="openIssueDetail('${otherId}')">#${otherId}</span></div>`;
+      return `<div class="subtask-row">${escapeHtml(label)} <span class="issue-id-link" data-click="open-issue" data-arg="${otherId}">#${otherId}</span></div>`;
     }),
   ].join('');
 
@@ -424,21 +427,21 @@ function renderIssueDetail(issue, timeEntries, members) {
     </div>
     <div class="detail-meta">
       <div><strong>Project</strong> ${escapeHtml((issue.project && issue.project.name) || '—')}</div>
-      <div><strong>Assignee</strong> <select id="assignee-select" class="assignee-select" onchange="changeAssignee(this.value)">${assigneeOptionsHtml}</select></div>
-      <div><strong>Priority</strong> <select id="priority-select" class="assignee-select" onchange="changePriority(this.value)">${priorityOptionsHtml}</select></div>
-      <div><strong>Tracker</strong> <select id="tracker-select" class="assignee-select" onchange="changeIssueField('tracker_id', Number(this.value))">${trackerOptionsHtml}</select></div>
-      <div><strong>Category</strong> <select id="category-select" class="assignee-select" onchange="changeIssueField('category_id', this.value === '' ? '' : Number(this.value))">${categoryOptionsHtml}</select></div>
-      <div><strong>Target version</strong> <select id="version-select" class="assignee-select" onchange="changeIssueField('fixed_version_id', this.value === '' ? '' : Number(this.value))">${versionOptionsHtml}</select></div>
+      <div><strong>Assignee</strong> <select id="assignee-select" class="assignee-select" data-change="change-assignee">${assigneeOptionsHtml}</select></div>
+      <div><strong>Priority</strong> <select id="priority-select" class="assignee-select" data-change="change-priority">${priorityOptionsHtml}</select></div>
+      <div><strong>Tracker</strong> <select id="tracker-select" class="assignee-select" data-change="change-tracker">${trackerOptionsHtml}</select></div>
+      <div><strong>Category</strong> <select id="category-select" class="assignee-select" data-change="change-category">${categoryOptionsHtml}</select></div>
+      <div><strong>Target version</strong> <select id="version-select" class="assignee-select" data-change="change-version">${versionOptionsHtml}</select></div>
       <div><strong>Author</strong> ${escapeHtml((issue.author && issue.author.name) || '—')}</div>
-      <div><strong>Start</strong> <input type="date" id="start-date-input" class="assignee-select" value="${issue.start_date || ''}" onchange="changeIssueField('start_date', this.value)"></div>
-      <div><strong>Due</strong> <input type="date" id="due-date-input" class="assignee-select" value="${issue.due_date || ''}" onchange="changeIssueField('due_date', this.value)"></div>
-      <div><strong>% Done</strong> <input type="number" id="done-ratio-input" class="assignee-select" min="0" max="100" step="1" value="${issue.done_ratio != null ? issue.done_ratio : 0}" onchange="changeIssueField('done_ratio', this.value === '' ? 0 : Number(this.value))"></div>
-      <div><strong>Estimation (h)</strong> <input type="number" id="estimated-hours-input" class="assignee-select" min="0" step="0.25" placeholder="—" value="${issue.estimated_hours != null ? issue.estimated_hours : ''}" onchange="changeIssueField('estimated_hours', this.value === '' ? '' : Number(this.value))"></div>
+      <div><strong>Start</strong> <input type="date" id="start-date-input" class="assignee-select" value="${issue.start_date || ''}" data-change="change-start-date"></div>
+      <div><strong>Due</strong> <input type="date" id="due-date-input" class="assignee-select" value="${issue.due_date || ''}" data-change="change-due-date"></div>
+      <div><strong>% Done</strong> <input type="number" id="done-ratio-input" class="assignee-select" min="0" max="100" step="1" value="${issue.done_ratio != null ? issue.done_ratio : 0}" data-change="change-done-ratio"></div>
+      <div><strong>Estimation (h)</strong> <input type="number" id="estimated-hours-input" class="assignee-select" min="0" step="0.25" placeholder="—" value="${issue.estimated_hours != null ? issue.estimated_hours : ''}" data-change="change-estimated-hours"></div>
     </div>
     <div class="detail-section">
       <h3>Description</h3>
-      <div class="detail-description markdown-body" id="description-display" onclick="editDescription()">${issue.description ? renderBody(issue.description, issue.attachments) : '<span class="detail-empty">No description. Click to add one.</span>'}</div>
-      <textarea id="description-input" class="description-textarea" style="display:none" onblur="saveDescriptionEdit()"></textarea>
+      <div class="detail-description markdown-body" id="description-display" data-click="edit-description">${issue.description ? renderBody(issue.description, issue.attachments) : '<span class="detail-empty">No description. Click to add one.</span>'}</div>
+      <textarea id="description-input" class="description-textarea" style="display:none" data-blur="save-description"></textarea>
     </div>
     ${subtasksHtml ? `<div class="detail-section"><h3>Related tickets</h3>${subtasksHtml}</div>` : ''}
     ${customFieldsHtml ? `<div class="detail-section"><h3>Custom fields</h3>${customFieldsHtml}</div>` : ''}
@@ -452,13 +455,13 @@ function renderIssueDetail(issue, timeEntries, members) {
           ${activities.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
         </select>
         <input type="text" id="timelog-comment" class="timelog-comment" placeholder="Comment (optional)">
-        <button id="timelog-submit-btn" class="timelog-submit-btn" onclick="submitTimelog()">Log time</button>
+        <button id="timelog-submit-btn" class="timelog-submit-btn" data-click="submit-timelog">Log time</button>
       </div>
     </div>
     <div class="detail-section">
       <h3>Attachments</h3>
       ${attachmentsHtml}
-      <button id="attachment-upload-btn" class="secondary-btn" onclick="uploadAttachment()">Attach file…</button>
+      <button id="attachment-upload-btn" class="secondary-btn" data-click="upload-attachment">Attach file…</button>
     </div>
     <div class="detail-section">
       <h3>Activity</h3>
@@ -673,7 +676,7 @@ function renderTimerWidget() {
   stopTimerTick();
 
   if (currentTimerState.status === 'idle') {
-    el.innerHTML = `<button class="secondary-btn" onclick="startTimerHere()">▶ Start timer</button>`;
+    el.innerHTML = `<button class="secondary-btn" data-click="start-timer">▶ Start timer</button>`;
     return;
   }
 
@@ -681,9 +684,9 @@ function renderTimerWidget() {
   if (!mine) {
     el.innerHTML = `
       <div class="timer-other-note">
-        Timer running for <span class="issue-id-link" onclick="openIssueDetail('${currentTimerState.ticketId}')">#${currentTimerState.ticketId}</span>
+        Timer running for <span class="issue-id-link" data-click="open-issue" data-arg="${currentTimerState.ticketId}">#${currentTimerState.ticketId}</span>
         <span id="timer-other-elapsed" class="timer-elapsed"></span>
-        <button class="secondary-btn" onclick="discardOtherTimerAndStartHere()">Discard it & start here</button>
+        <button class="secondary-btn" data-click="discard-other-timer">Discard it & start here</button>
       </div>`;
     const paint = () => {
       const span = document.getElementById('timer-other-elapsed');
@@ -699,14 +702,14 @@ function renderTimerWidget() {
     <div class="timer-active">
       <span id="timer-mine-elapsed" class="timer-elapsed"></span>
       ${running
-        ? `<button class="secondary-btn" onclick="pauseTimerHere()">⏸ Pause</button>`
-        : `<button class="secondary-btn" onclick="startTimerHere()">▶ Resume</button>`}
-      <button class="secondary-btn" onclick="resetTimerHere()">↺ Reset</button>
-      <button class="secondary-btn" onclick="cancelTimerHere()">✕ Cancel</button>
+        ? `<button class="secondary-btn" data-click="pause-timer">⏸ Pause</button>`
+        : `<button class="secondary-btn" data-click="start-timer">▶ Resume</button>`}
+      <button class="secondary-btn" data-click="reset-timer">↺ Reset</button>
+      <button class="secondary-btn" data-click="cancel-timer">✕ Cancel</button>
       <select id="timer-complete-activity" class="timelog-activity">
         ${activities.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
       </select>
-      <button class="timelog-submit-btn" onclick="completeTimerHere()">✓ Complete</button>
+      <button class="timelog-submit-btn" data-click="complete-timer">✓ Complete</button>
     </div>`;
   const paint = () => {
     const span = document.getElementById('timer-mine-elapsed');
@@ -1160,14 +1163,14 @@ function createTaskCard(id, content, issueId = null) {
   // purely cosmetic since loadFromAPI() overwrites it with the real value
   // on the very next refresh anyway. Local scratch cards have no detail
   // view at all, so inline editing stays their only way to rename.
-  const contentAttrs = issueId ? '' : ' contenteditable="true" onblur="saveState()"';
+  const contentAttrs = issueId ? '' : ' contenteditable="true" data-blur="save-state"';
   card.innerHTML = `
-    ${issueId ? `<div class="task-id-badge" onclick="openIssueDetail('${issueId}')" title="View details">#${issueId}</div>` : ''}
+    ${issueId ? `<div class="task-id-badge" data-click="open-issue" data-arg="${issueId}" title="View details">#${issueId}</div>` : ''}
     <div class="task-content"${contentAttrs}>${content}</div>
     <div class="task-actions">
       ${!issueId ? `<span class="local-badge" title="Personal card, not synced to Redmine">Local</span>` : ''}
-      ${issueId ? `<button class="details-btn" onclick="openIssueDetail('${issueId}')">Details</button>` : ''}
-      <button class="delete-task-btn" onclick="deleteTask('${id}')">Delete</button>
+      ${issueId ? `<button class="details-btn" data-click="open-issue" data-arg="${issueId}">Details</button>` : ''}
+      <button class="delete-task-btn" data-click="delete-task" data-arg="${id}">Delete</button>
     </div>
   `;
   return card;
@@ -1415,45 +1418,68 @@ async function setBoardMode(mode) {
   await loadFromAPI();
 }
 
-// Global scope
-window.addTask = addTask;
-window.filterBoard = filterBoard;
-window.deleteTask = deleteTask;
-window.saveState = saveState;
-window.openSettings = openSettings;
-window.closeSettings = closeSettings;
-window.openColumnMapping = openColumnMapping;
-window.closeColumnMapping = closeColumnMapping;
-window.saveColumnMappingOverrides = saveColumnMappingOverrides;
-window.saveSettings = saveSettings;
-window.toggleTheme = toggleTheme;
-window.toggleTransparency = toggleTransparency;
-window.openIssueDetail = openIssueDetail;
-window.closeIssueDetail = closeIssueDetail;
-window.postComment = postComment;
-window.submitTimelog = submitTimelog;
-window.changeAssignee = changeAssignee;
-window.changePriority = changePriority;
-window.uploadAttachment = uploadAttachment;
-window.saveSubjectEdit = saveSubjectEdit;
-window.changeIssueField = changeIssueField;
-window.editDescription = editDescription;
-window.saveDescriptionEdit = saveDescriptionEdit;
-window.setBoardMode = setBoardMode;
-window.openNewTicket = openNewTicket;
-window.closeNewTicket = closeNewTicket;
-window.loadNewTicketTrackers = loadNewTicketTrackers;
-window.loadNewTicketCustomFields = loadNewTicketCustomFields;
-window.submitNewTicket = submitNewTicket;
-window.checkForUpdates = checkForUpdates;
-window.closeUpdateModal = closeUpdateModal;
-window.openReleasesFromModal = openReleasesFromModal;
-window.startTimerHere = startTimerHere;
-window.pauseTimerHere = pauseTimerHere;
-window.resetTimerHere = resetTimerHere;
-window.cancelTimerHere = cancelTimerHere;
-window.discardOtherTimerAndStartHere = discardOtherTimerAndStartHere;
-window.completeTimerHere = completeTimerHere;
+// RDD-29: the page CSP has no 'unsafe-inline' in script-src, so inline
+// on*="..." attributes never run. Markup names an action instead -
+// data-click / data-change / data-input / data-blur="<action>", plus
+// data-arg where the handler needs one - and a single delegated listener
+// per event type looks it up here. Delegation (not per-element listeners)
+// keeps it working for markup rebuilt via innerHTML on every render.
+const UI_ACTIONS = {
+  'add-task': (el) => addTask(el.dataset.arg),
+  'filter-board': (el) => filterBoard(el.value),
+  'delete-task': (el) => deleteTask(el.dataset.arg),
+  'save-state': () => saveState(),
+  'open-settings': () => openSettings(),
+  'close-settings': () => closeSettings(),
+  'open-column-mapping': () => openColumnMapping(),
+  'close-column-mapping': () => closeColumnMapping(),
+  'save-column-mapping': () => saveColumnMappingOverrides(),
+  'save-settings': () => saveSettings(),
+  'toggle-theme': () => toggleTheme(),
+  'toggle-transparency': () => toggleTransparency(),
+  'open-issue': (el) => openIssueDetail(el.dataset.arg),
+  'close-issue-detail': () => closeIssueDetail(),
+  'post-comment': () => postComment(),
+  'submit-timelog': () => submitTimelog(),
+  'change-assignee': (el) => changeAssignee(el.value),
+  'change-priority': (el) => changePriority(el.value),
+  'change-tracker': (el) => changeIssueField('tracker_id', Number(el.value)),
+  'change-category': (el) => changeIssueField('category_id', el.value === '' ? '' : Number(el.value)),
+  'change-version': (el) => changeIssueField('fixed_version_id', el.value === '' ? '' : Number(el.value)),
+  'change-start-date': (el) => changeIssueField('start_date', el.value),
+  'change-due-date': (el) => changeIssueField('due_date', el.value),
+  'change-done-ratio': (el) => changeIssueField('done_ratio', el.value === '' ? 0 : Number(el.value)),
+  'change-estimated-hours': (el) => changeIssueField('estimated_hours', el.value === '' ? '' : Number(el.value)),
+  'upload-attachment': () => uploadAttachment(),
+  'save-subject': () => saveSubjectEdit(),
+  'edit-description': () => editDescription(),
+  'save-description': () => saveDescriptionEdit(),
+  'set-board-mode': (el) => setBoardMode(el.dataset.mode),
+  'open-new-ticket': () => openNewTicket(),
+  'close-new-ticket': () => closeNewTicket(),
+  'load-new-ticket-trackers': () => loadNewTicketTrackers(),
+  'load-new-ticket-custom-fields': () => loadNewTicketCustomFields(),
+  'submit-new-ticket': () => submitNewTicket(),
+  'check-for-updates': () => checkForUpdates(),
+  'close-update-modal': () => closeUpdateModal(),
+  'open-releases': () => openReleasesFromModal(),
+  'start-timer': () => startTimerHere(),
+  'pause-timer': () => pauseTimerHere(),
+  'reset-timer': () => resetTimerHere(),
+  'cancel-timer': () => cancelTimerHere(),
+  'discard-other-timer': () => discardOtherTimerAndStartHere(),
+  'complete-timer': () => completeTimerHere(),
+};
+
+// blur doesn't bubble, so data-blur rides on focusout, which does.
+const DELEGATED_EVENTS = { click: 'click', change: 'change', input: 'input', focusout: 'blur' };
+for (const [type, attr] of Object.entries(DELEGATED_EVENTS)) {
+  document.addEventListener(type, (event) => {
+    const el = event.target instanceof Element ? event.target.closest(`[data-${attr}]`) : null;
+    const action = el && UI_ACTIONS[el.dataset[attr]];
+    if (action) action(el);
+  });
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
