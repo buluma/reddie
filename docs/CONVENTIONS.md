@@ -7,14 +7,14 @@ Rules all AI agents must follow in this project.
 - **Preflight** (`bun run test && bun run build`) must be green before forward work.
 - **CI** (`gh pr checks`) must be green before merging.
 - 1-10-100 rationale: fixing a convention violation at authoring costs 1; after commit costs 10; after merge costs 100.
-- Reproducible gate failures require **fix-or-log** (quick-fix → fix-bug). Never ignore a red gate.
+- Reproducible gate failures require **fix-or-log** (fix it now, or log it as a tracked task). Never ignore a red gate.
 
 ## Discovered Defects
 
 When a bug is found during development (not the original task):
 
 1. **Quick-fix** if trivial (<= 5 min, pure data, no logic risk) — separate commit, conventional commit message.
-2. **Fix-bug** if non-trivial — create `specs/bugs/BUG-<id>.md`, plan the fix, separate branch.
+2. **Fix-bug** if non-trivial — log it as its own task, plan the fix, separate branch.
 3. Never fold a discovered fix into the feature commit — it obscures blame and makes rollback harder.
 
 ## Banned Dismissive Phrases
@@ -31,7 +31,7 @@ Never use these to skip a gate failure:
 
 ## Defensive Code
 
-- **Retry**: Configured in `settings.json` (max 3 retries, exponential backoff). Used for Redmine API calls.
+- **Retry**: `withRetry` in `src/redmine-client.js` retries transient GET failures (network errors, timeouts, 5xx) up to 2 times with linear backoff. Writes (PUT/POST) are never retried.
 
 ## Testing
 
