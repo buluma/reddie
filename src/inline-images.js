@@ -9,7 +9,13 @@
 // both must be handled - a real instance (redmine.nasctech.com) uses the
 // Textile form, which `marked` otherwise leaves as literal text:
 //   - Markdown: ![alt](filename.png)
-//   - Textile:  !filename.png!
+//   - Textile:  !filename.png!, optionally with Textile's image modifiers
+//     before the target and a title after it - the real instance's editor
+//     writes !{height: 639px; width: 1201px;}filename.png! for pasted
+//     screenshots. Modifiers/title are kept; only the target is rewritten.
+// A target may also be URL-encoded (Screenshot%202026-...png for an
+// attachment named "Screenshot 2026-...png"), so a miss on the raw target
+// retries with it decoded.
 // Each has only its *target* rewritten to the attachment's absolute
 // content_url, keeping its original delimiter - Markdown stays Markdown,
 // Textile stays Textile - so whichever renderer (marked / textile-js) parses
@@ -36,21 +42,35 @@
     });
     if (!byName.size) return text;
 
+    const lookup = (target) => {
+      if (byName.has(target)) return byName.get(target);
+      try {
+        return byName.get(decodeURIComponent(target));
+      } catch {
+        return undefined; // not valid %-encoding - just not a match
+      }
+    };
+
     // Markdown ![alt](target) first, so its inner text can't be mistaken for a
     // Textile !...! pair below. Preserve the alt text.
     let out = text.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, target) => {
-      const url = byName.get(target);
+      const url = lookup(target);
       return url ? `![${alt}](${url})` : match;
     });
 
-    // Textile !target! - target can't contain whitespace, `!`, or `|`. Only
-    // rewritten when it names a real image attachment, so ordinary `!word!`
-    // emphasis-style text is untouched. The `!...!` delimiter is preserved so
-    // the Textile renderer still sees an image.
-    out = out.replace(/!([^!\s|]+)!/g, (match, target) => {
-      const url = byName.get(target);
-      return url ? `!${url}!` : match;
-    });
+    // Textile !mods target(title)! - mods are any run of {style}, (class),
+    // [lang] and the <, >, = alignment marks; target can't contain whitespace,
+    // `!`, `|` or `(`. Only rewritten when the target names a real image
+    // attachment, so ordinary `!word!` / `!{color: red}word!` text is
+    // untouched. Everything but the target is preserved so the Textile
+    // renderer still sees the same image (style, alignment, title).
+    out = out.replace(
+      /!((?:\{[^}!]*\}|\([^)!]*\)|\[[^\]!]*\]|[<>=])*)([^!\s|(]+)(\([^)!]*\))?!/g,
+      (match, mods, target, title) => {
+        const url = lookup(target);
+        return url ? `!${mods}${url}${title || ''}!` : match;
+      },
+    );
 
     return out;
   }
