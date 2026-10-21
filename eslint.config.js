@@ -8,7 +8,7 @@ const globals = require('globals');
 // build output are never linted.
 module.exports = [
   {
-    ignores: ['src/vendor/**', 'dist/**', 'node_modules/**'],
+    ignores: ['dist/**', 'node_modules/**'],
   },
   js.configs.recommended,
   {

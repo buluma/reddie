@@ -162,6 +162,25 @@ test.describe('app launch', () => {
     expect(csp['connect-src']).toEqual(["'none'"]);
   });
 
+  // RDD-30: the libraries the renderer runs must be the ones bun.lock
+  // resolved - not stale hand-copied builds - and must still work as the
+  // globals renderer.js expects.
+  test('renderer runs the installed DOMPurify, and every library works', async () => {
+    const installed = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'node_modules', 'dompurify', 'package.json'), 'utf8')).version;
+    const result = await page.evaluate(() => ({
+      purifyVersion: window.DOMPurify.version,
+      sanitized: window.DOMPurify.sanitize('<img src=x onerror=alert(1)>'),
+      markdown: window.marked.parse('**bold**'),
+      textile: window.textile.parse('*bold*'),
+      sortable: typeof window.Sortable,
+    }));
+    expect(result.purifyVersion).toBe(installed);
+    expect(result.sanitized).not.toContain('onerror');
+    expect(result.markdown).toContain('<strong>bold</strong>');
+    expect(result.textile).toContain('<strong>bold</strong>');
+    expect(result.sortable).toBe('function');
+  });
+
   test('no CSP violations during boot or the checks above', async () => {
     // The connect-src probe above is a deliberate violation - ignore it.
     expect(cspViolations.filter((m) => !m.includes('example.invalid'))).toEqual([]);
