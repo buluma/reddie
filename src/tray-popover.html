@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Same policy as index.html, minus remote images (the popover shows none). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Reddie</title>
   <style>
     /* Colors match styles.css's dark theme (--bg-color/--text-color/etc.) -
