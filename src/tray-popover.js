@@ -29,7 +29,7 @@ function renderTickets(issues) {
     return;
   }
   el.innerHTML = issues.map(issue => `
-    <div class="ticket-row" onclick="trayAPI.openIssue(${issue.id})">
+    <div class="ticket-row" data-issue-id="${issue.id}">
       <span class="ticket-id">#${issue.id}</span>${escapeHtml(issue.subject)}
     </div>
   `).join('');
@@ -57,7 +57,7 @@ function renderActiveTimer(activeTimer) {
     const elapsed = reddieTimer.formatElapsed(reddieTimer.elapsedMs(activeTimer, Date.now()));
     const paused = activeTimer.status === 'paused';
     el.innerHTML = `
-      <div class="timer-row" onclick="trayAPI.openIssue(${activeTimer.ticketId})">
+      <div class="timer-row" data-issue-id="${activeTimer.ticketId}">
         <span class="timer-dot${paused ? '' : ' running'}"></span>
         <span class="timer-elapsed">${elapsed}</span>
         <span class="timer-subject">#${activeTimer.ticketId} ${escapeHtml(activeTimer.subject || '')}${paused ? ' (paused)' : ''}</span>
@@ -78,4 +78,24 @@ trayAPI.onTrayData((data) => {
   // were fewer than 5 tickets - measure actual content after layout
   // settles and let main.js resize the window to match.
   requestAnimationFrame(() => trayAPI.resize(document.body.scrollHeight));
+});
+
+// RDD-29: the popover CSP has no 'unsafe-inline' in script-src, so clicks are
+// wired here by delegation instead of inline onclick attributes - ticket rows
+// carry data-issue-id, footer buttons data-tray-action.
+const TRAY_ACTIONS = {
+  settings: () => trayAPI.openSettings(),
+  updates: () => trayAPI.checkForUpdates(),
+  quit: () => trayAPI.quit(),
+};
+
+document.addEventListener('click', (event) => {
+  const row = event.target.closest('[data-issue-id]');
+  if (row) {
+    trayAPI.openIssue(Number(row.dataset.issueId));
+    return;
+  }
+  const button = event.target.closest('[data-tray-action]');
+  const action = button && TRAY_ACTIONS[button.dataset.trayAction];
+  if (action) action();
 });

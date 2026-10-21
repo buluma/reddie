@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <!-- Same policy as index.html, minus remote images (the popover shows none). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Reddie</title>
   <style>
     /* Colors match styles.css's dark theme (--bg-color/--text-color/etc.) -
@@ -170,9 +170,9 @@
   <div class="columns" id="columns"></div>
   <div class="tickets" id="tickets"></div>
   <div class="footer">
-    <button onclick="trayAPI.openSettings()">Settings</button>
-    <button onclick="trayAPI.checkForUpdates()">Updates</button>
-    <button class="quit" onclick="trayAPI.quit()">Quit</button>
+    <button data-tray-action="settings">Settings</button>
+    <button data-tray-action="updates">Updates</button>
+    <button class="quit" data-tray-action="quit">Quit</button>
   </div>
   <script src="timer.js"></script>
   <script src="tray-popover.js"></script>

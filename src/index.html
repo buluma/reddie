@@ -7,7 +7,7 @@
        eval, remote scripts and renderer network calls are blocked (Redmine is
        reached only via IPC). img-src keeps http(s): because images in ticket
        bodies that point at other hosts are deliberately left as plain <img>. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reddie</title>
   <link rel="stylesheet" href="styles.css">
@@ -25,42 +25,42 @@
       </div>
       <div class="header-right">
         <div class="board-mode-toggle">
-          <button class="board-mode-btn active" data-mode="assigned" onclick="setBoardMode('assigned')">My Issues</button>
-          <button class="board-mode-btn" data-mode="authored" onclick="setBoardMode('authored')">Authored by Me</button>
+          <button class="board-mode-btn active" data-mode="assigned" data-click="set-board-mode">My Issues</button>
+          <button class="board-mode-btn" data-mode="authored" data-click="set-board-mode">Authored by Me</button>
         </div>
-        <input type="text" id="board-search" class="board-search" placeholder="Search…" oninput="filterBoard(this.value)">
-        <button class="new-ticket-btn" onclick="openNewTicket()"><span class="new-ticket-icon">+</span> New Ticket</button>
-        <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">🌙</button>
-        <button class="theme-toggle" id="transparency-toggle" onclick="toggleTransparency()" title="Window transparency (macOS, restart required to apply)">👻</button>
-        <button class="settings-btn" onclick="openSettings()">⚙️</button>
+        <input type="text" id="board-search" class="board-search" placeholder="Search…" data-input="filter-board">
+        <button class="new-ticket-btn" data-click="open-new-ticket"><span class="new-ticket-icon">+</span> New Ticket</button>
+        <button class="theme-toggle" id="theme-toggle" data-click="toggle-theme">🌙</button>
+        <button class="theme-toggle" id="transparency-toggle" data-click="toggle-transparency" title="Window transparency (macOS, restart required to apply)">👻</button>
+        <button class="settings-btn" data-click="open-settings">⚙️</button>
       </div>
     </header>
     <main class="dashboard">
       <div class="column" id="backlog">
         <div class="column-header">
           <h2>Backlog</h2>
-          <button class="add-btn" onclick="addTask('backlog')">+</button>
+          <button class="add-btn" data-click="add-task" data-arg="backlog">+</button>
         </div>
         <div class="task-list" id="backlog-list"></div>
       </div>
       <div class="column" id="todo">
         <div class="column-header">
           <h2>To Do</h2>
-          <button class="add-btn" onclick="addTask('todo')">+</button>
+          <button class="add-btn" data-click="add-task" data-arg="todo">+</button>
         </div>
         <div class="task-list" id="todo-list"></div>
       </div>
       <div class="column" id="in-progress">
         <div class="column-header">
           <h2>In Progress</h2>
-          <button class="add-btn" onclick="addTask('in-progress')">+</button>
+          <button class="add-btn" data-click="add-task" data-arg="in-progress">+</button>
         </div>
         <div class="task-list" id="in-progress-list"></div>
       </div>
       <div class="column" id="done">
         <div class="column-header">
           <h2>Done</h2>
-          <button class="add-btn" onclick="addTask('done')">+</button>
+          <button class="add-btn" data-click="add-task" data-arg="done">+</button>
         </div>
         <div class="task-list" id="done-list"></div>
       </div>
@@ -72,7 +72,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Settings</h2>
-        <button class="close-btn" onclick="closeSettings()">×</button>
+        <button class="close-btn" data-click="close-settings">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -92,9 +92,9 @@
           </select>
         </div>
         <div class="form-actions">
-          <button onclick="saveSettings()">Save & Reconnect</button>
-          <button type="button" class="secondary-btn" onclick="openColumnMapping()">Column Mapping…</button>
-          <button type="button" class="secondary-btn" onclick="checkForUpdates()">Check for Updates…</button>
+          <button data-click="save-settings">Save & Reconnect</button>
+          <button type="button" class="secondary-btn" data-click="open-column-mapping">Column Mapping…</button>
+          <button type="button" class="secondary-btn" data-click="check-for-updates">Check for Updates…</button>
         </div>
       </div>
     </div>
@@ -105,13 +105,13 @@
     <div class="modal-content detail-modal-content">
       <div class="modal-header">
         <h2>Column Mapping</h2>
-        <button class="close-btn" onclick="closeColumnMapping()">×</button>
+        <button class="close-btn" data-click="close-column-mapping">×</button>
       </div>
       <div class="modal-body detail-modal-body" id="column-mapping-body">
         <div class="detail-loading">Loading…</div>
       </div>
       <div class="detail-modal-footer">
-        <button id="column-mapping-save-btn" class="comment-submit-btn" style="align-self: stretch;" onclick="saveColumnMappingOverrides()">Save mapping</button>
+        <button id="column-mapping-save-btn" class="comment-submit-btn" style="align-self: stretch;" data-click="save-column-mapping">Save mapping</button>
       </div>
     </div>
   </div>
@@ -121,16 +121,16 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>New Ticket</h2>
-        <button class="close-btn" onclick="closeNewTicket()">×</button>
+        <button class="close-btn" data-click="close-new-ticket">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
           <label>Project</label>
-          <select id="new-ticket-project" onchange="loadNewTicketTrackers()"></select>
+          <select id="new-ticket-project" data-change="load-new-ticket-trackers"></select>
         </div>
         <div class="form-group">
           <label>Tracker</label>
-          <select id="new-ticket-tracker" onchange="loadNewTicketCustomFields()"></select>
+          <select id="new-ticket-tracker" data-change="load-new-ticket-custom-fields"></select>
         </div>
         <div class="form-group">
           <label>Subject</label>
@@ -142,7 +142,7 @@
         </div>
         <div id="new-ticket-custom-fields"></div>
         <div class="form-actions">
-          <button id="new-ticket-submit-btn" onclick="submitNewTicket()">Create</button>
+          <button id="new-ticket-submit-btn" data-click="submit-new-ticket">Create</button>
         </div>
       </div>
     </div>
@@ -152,15 +152,15 @@
   <div id="issue-detail-modal" class="modal">
     <div class="modal-content detail-modal-content">
       <div class="modal-header">
-        <h2 id="detail-subject" contenteditable="true" onblur="saveSubjectEdit()" title="Click to edit the subject">Issue</h2>
-        <button class="close-btn" onclick="closeIssueDetail()">×</button>
+        <h2 id="detail-subject" contenteditable="true" data-blur="save-subject" title="Click to edit the subject">Issue</h2>
+        <button class="close-btn" data-click="close-issue-detail">×</button>
       </div>
       <div class="modal-body detail-modal-body" id="detail-body">
         <div class="detail-loading">Loading…</div>
       </div>
       <div class="detail-modal-footer">
         <textarea id="comment-input" class="comment-input" placeholder="Add a comment…" rows="3"></textarea>
-        <button id="comment-submit-btn" class="comment-submit-btn" onclick="postComment()">Post comment</button>
+        <button id="comment-submit-btn" class="comment-submit-btn" data-click="post-comment">Post comment</button>
       </div>
     </div>
   </div>
@@ -170,13 +170,13 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Update Available</h2>
-        <button class="close-btn" onclick="closeUpdateModal()">×</button>
+        <button class="close-btn" data-click="close-update-modal">×</button>
       </div>
       <div class="modal-body">
         <p id="update-modal-body"></p>
         <div class="form-actions">
-          <button onclick="openReleasesFromModal()">Open GitHub Releases</button>
-          <button type="button" class="secondary-btn" onclick="closeUpdateModal()">Dismiss</button>
+          <button data-click="open-releases">Open GitHub Releases</button>
+          <button type="button" class="secondary-btn" data-click="close-update-modal">Dismiss</button>
         </div>
       </div>
     </div>
