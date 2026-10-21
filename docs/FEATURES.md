@@ -42,7 +42,7 @@ Living list of what reddie currently supports. Update this alongside any feature
 
 ## Configuration
 
-- Redmine URL + API key via `.env` or Settings — no other backend required, ever
+- Redmine URL + API key via `.env` or Settings — no other backend required, ever. No built-in default instance: until both are set, the board shows "No Redmine URL configured" (or "No API key configured"), makes no Redmine requests, and opens Settings once per launch
 - API key encrypted at rest via Electron's `safeStorage` (Keychain/DPAPI/libsecret), not plaintext
 - Per-status column mapping overrides (see Board, above)
 - **Window transparency** (👻 toggle, header) — native macOS vibrancy (`under-window`), off by default. `transparent` is a constructor-only Electron option, so toggling this needs an app restart to apply. macOS only; no-op elsewhere. Modals stay readable while transparent — background blur alone wasn't enough to keep board card text from bleeding through at low alpha, so modal panels use a much higher opacity than board cards while keeping a frosted-edge blur.

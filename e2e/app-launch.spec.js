@@ -1,3 +1,5 @@
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 
@@ -50,7 +52,10 @@ test.describe('app launch', () => {
 
   test.beforeAll(async () => {
     app = await electron.launch({
-      args: [path.join(__dirname, '..')],
+      // A throwaway userData dir: without it the app reads the developer's
+      // real saved Settings (config.json), which would connect to a live
+      // instance and make this test anything but hermetic.
+      args: [path.join(__dirname, '..'), `--user-data-dir=${fs.mkdtempSync(path.join(os.tmpdir(), 'reddie-e2e-'))}`],
       // Force the no-credentials path so the test never depends on a
       // developer's local .env pointing at a live instance.
       env: { ...process.env, REDMINE_API_KEY: '', REDMINE_BASE_URL: '' },
@@ -98,6 +103,22 @@ test.describe('app launch', () => {
 
   test('does not surface a renderer console error on boot', async () => {
     expect(pageErrors).toEqual([]);
+  });
+
+  // RDD-27: no built-in default instance. With no URL configured the app
+  // must say so (not fall back to some real host and 401), and point the
+  // user at Settings instead of leaving the board stuck on "Loading…".
+  test('unconfigured launch reports that no Redmine URL is set', async () => {
+    await expect(page.locator('#connection-status .status-text')).toHaveText('No Redmine URL configured');
+  });
+
+  test('unconfigured launch opens Settings and leaves no column loading', async () => {
+    await expect(page.locator('#settings-modal')).toHaveClass(/show/);
+    await expect(page.locator('#redmine-base')).toHaveValue('');
+    await expect(page.locator('#backlog-list, #todo-list, #in-progress-list, #done-list').locator('.detail-loading')).toHaveCount(0);
+    // Leave the board as the later tests expect to find it.
+    await page.click('#settings-modal .close-btn');
+    await expect(page.locator('#settings-modal')).not.toHaveClass(/show/);
   });
 
   // RDD-25: both renderer pages carry a CSP. Inline handlers are still
