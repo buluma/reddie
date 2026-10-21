@@ -164,6 +164,20 @@ async function collectAllPages(fetchPage, pageSize = PAGE_SIZE) {
   return all;
 }
 
+// Ids reach this client from the renderer over IPC and are interpolated into
+// URL paths and query strings. The renderer only sends numeric ids, but a
+// compromised one could pass `1.json?x=` or `../users/1` and steer an
+// authenticated request elsewhere on the instance - so anything that isn't a
+// plain positive integer (number or digit string) is refused before a URL is
+// built. Returns the id as a string, ready to interpolate.
+function assertId(value, label) {
+  const str = typeof value === 'number' ? String(value) : value;
+  if (typeof str !== 'string' || !/^[1-9]\d*$/.test(str)) {
+    throw new Error(`Invalid ${label}: ${JSON.stringify(value)}`);
+  }
+  return str;
+}
+
 class RedmineClient {
   constructor(baseUrl, apiKey) {
     this.baseUrl = baseUrl;
@@ -218,11 +232,11 @@ class RedmineClient {
   }
 
   updatePriority(issueId, priorityId) {
-    return this.put(`/issues/${issueId}.json`, { issue: { priority_id: priorityId } });
+    return this.put(`/issues/${assertId(issueId, 'issue id')}.json`, { issue: { priority_id: priorityId } });
   }
 
   updateSubject(issueId, subject) {
-    return this.put(`/issues/${issueId}.json`, { issue: { subject } });
+    return this.put(`/issues/${assertId(issueId, 'issue id')}.json`, { issue: { subject } });
   }
 
   // Covers description, start_date, due_date, done_ratio, estimated_hours -
@@ -231,7 +245,7 @@ class RedmineClient {
   // string clears a date/description, omitted keys are left untouched by
   // Redmine.
   updateIssue(issueId, fields) {
-    return this.put(`/issues/${issueId}.json`, { issue: fields });
+    return this.put(`/issues/${assertId(issueId, 'issue id')}.json`, { issue: fields });
   }
 
   async uploadFile(buffer, filename, contentType) {
@@ -247,7 +261,7 @@ class RedmineClient {
   }
 
   attachToIssue(issueId, token, filename, contentType) {
-    return this.put(`/issues/${issueId}.json`, {
+    return this.put(`/issues/${assertId(issueId, 'issue id')}.json`, {
       issue: {
         uploads: [{ token, filename, content_type: contentType || 'application/octet-stream' }],
       },
@@ -269,7 +283,7 @@ class RedmineClient {
     // validation rejects that pairing with a confusing "Tracker cannot be
     // blank" rather than "invalid tracker" (confirmed against a real
     // instance), so this has to be scoped per-project from the start.
-    const result = await this.get(`/projects/${projectId}.json?include=trackers`);
+    const result = await this.get(`/projects/${assertId(projectId, 'project id')}.json?include=trackers`);
     return (result.project && result.project.trackers) || [];
   }
 
@@ -277,7 +291,7 @@ class RedmineClient {
   // this instance, same restriction as /custom_fields.json above - the
   // project-scoped include= works instead, same fix as listProjectTrackers.
   async listProjectCategories(projectId) {
-    const result = await this.get(`/projects/${projectId}.json?include=issue_categories`);
+    const result = await this.get(`/projects/${assertId(projectId, 'project id')}.json?include=issue_categories`);
     return (result.project && result.project.issue_categories) || [];
   }
 
@@ -285,7 +299,7 @@ class RedmineClient {
   // isn't permission-restricted for a regular API key (confirmed against a
   // real instance) - no include= workaround needed here.
   async listProjectVersions(projectId) {
-    const result = await this.get(`/projects/${projectId}/versions.json`);
+    const result = await this.get(`/projects/${assertId(projectId, 'project id')}/versions.json`);
     return result.versions || [];
   }
 
@@ -312,7 +326,7 @@ class RedmineClient {
   // if no existing issue of that pairing was found to sample.
   async listTrackerCustomFields(projectId, trackerId) {
     const result = await this.get(
-      `/issues.json?project_id=${projectId}&tracker_id=${trackerId}&status_id=*&limit=1`,
+      `/issues.json?project_id=${assertId(projectId, 'project id')}&tracker_id=${assertId(trackerId, 'tracker id')}&status_id=*&limit=1`,
     );
     const issue = (result.issues || [])[0];
     return (issue && issue.custom_fields) || [];
@@ -340,6 +354,7 @@ class RedmineClient {
   }
 
   async getIssueDetail(issueId) {
+    issueId = assertId(issueId, 'issue id');
     const [issueResult, timeEntries] = await Promise.all([
       this.get(`/issues/${issueId}.json?include=journals,attachments,relations,allowed_statuses,children`),
       // Time tracking can be disabled on an instance (this 403s then) - fall
@@ -358,10 +373,11 @@ class RedmineClient {
   }
 
   updateStatus(issueId, statusId) {
-    return this.put(`/issues/${issueId}.json`, { issue: { status_id: statusId } });
+    return this.put(`/issues/${assertId(issueId, 'issue id')}.json`, { issue: { status_id: statusId } });
   }
 
   async listProjectMembers(projectId) {
+    projectId = assertId(projectId, 'project id');
     const memberships = await collectAllPages(async (offset, limit) => {
       const result = await this.get(`/projects/${projectId}/memberships.json?limit=${limit}&offset=${offset}`);
       return { items: result.memberships || [], total_count: result.total_count };
@@ -381,11 +397,11 @@ class RedmineClient {
     // Redmine clears the assignee when assigned_to_id is an empty string -
     // null/undefined would be dropped from the JSON body entirely and
     // leave the existing assignee untouched instead of unassigning.
-    return this.put(`/issues/${issueId}.json`, { issue: { assigned_to_id: userId || '' } });
+    return this.put(`/issues/${assertId(issueId, 'issue id')}.json`, { issue: { assigned_to_id: userId || '' } });
   }
 
   addComment(issueId, comment) {
-    return this.put(`/issues/${issueId}.json`, { issue: { notes: comment } });
+    return this.put(`/issues/${assertId(issueId, 'issue id')}.json`, { issue: { notes: comment } });
   }
 
   addTimeEntry(issueId, { hours, activityId, comment, spentOn }) {
@@ -464,4 +480,4 @@ function sameInstanceImagePath(rawUrl, baseUrl) {
   return resolved.pathname + resolved.search;
 }
 
-module.exports = { RedmineClient, buildColumnMapping, sameInstanceImagePath, collectAllPages, isRetriable, withRetry };
+module.exports = { RedmineClient, assertId, buildColumnMapping, sameInstanceImagePath, collectAllPages, isRetriable, withRetry };
