@@ -52,7 +52,7 @@ bun start
 
 ### Option 2: In-app Settings
 
-Launch the app, click the gear icon, and enter your Redmine URL + API key. Encrypted at rest via Electron's `safeStorage`.
+Launch the app and enter your Redmine URL + API key in Settings (it opens automatically until both are set; the gear icon reopens it). The API key is encrypted at rest via Electron's `safeStorage`.
 
 ## Usage
 
@@ -80,7 +80,7 @@ bun start        # run from source
 
 | Setting | Source | Description |
 |---------|--------|-------------|
-| `REDMINE_URL` | `.env` or Settings | Redmine instance URL |
+| `REDMINE_BASE_URL` | `.env` or Settings | Redmine instance URL (required — there is no default instance) |
 | `REDMINE_API_KEY` | `.env` or Settings | Personal API key (encrypted at rest) |
 | `columnOverrides` | Settings | Per-status column mapping overrides |
 

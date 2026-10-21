@@ -35,7 +35,10 @@ autoUpdater.on('error', (err) => sendUpdateStatus('error', { message: err.messag
 // Talks directly to Redmine's own REST API - no Converge or any other
 // intermediary backend required. Anyone can run this against their own
 // Redmine instance by setting these two values (Settings, or .env).
-const DEFAULT_REDMINE_BASE_URL = process.env.REDMINE_BASE_URL || 'https://redmine.nasctech.com';
+// Deliberately no built-in default instance: the repo is public, and a
+// fallback host would point every fresh install (and the e2e suite) at
+// someone's real Redmine.
+const DEFAULT_REDMINE_BASE_URL = process.env.REDMINE_BASE_URL || '';
 const DEFAULT_REDMINE_API_KEY = process.env.REDMINE_API_KEY || '';
 
 let config = {
@@ -61,7 +64,14 @@ function rebuildClient() {
   client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
 }
 
+function isConfigured() {
+  return Boolean(config.redmineBaseUrl && config.redmineApiKey);
+}
+
 async function connect() {
+  if (!config.redmineBaseUrl) {
+    return { error: 'No Redmine URL configured' };
+  }
   if (!config.redmineApiKey) {
     return { error: 'No API key configured' };
   }
@@ -84,7 +94,10 @@ async function connect() {
   }
 }
 
+// The board polls these every 60s - when nothing is configured yet, skip
+// the request (it can only fail) and tell the renderer why instead.
 async function fetchIssues() {
+  if (!isConfigured()) return { items: [], notConfigured: true };
   try {
     const issues = await client.listMyIssues();
     return { items: issues };
@@ -95,6 +108,7 @@ async function fetchIssues() {
 }
 
 async function fetchAuthoredIssues() {
+  if (!isConfigured()) return { items: [], notConfigured: true };
   try {
     const issues = await client.listAuthoredIssues();
     return { items: issues };

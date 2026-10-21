@@ -868,7 +868,7 @@ async function submitTimelog() {
 function openSettings() {
   document.getElementById('settings-modal').classList.add('show');
   window.reddieAPI.getConfig().then(config => {
-    document.getElementById('redmine-base').value = config.redmineBaseUrl || 'https://redmine.nasctech.com';
+    document.getElementById('redmine-base').value = config.redmineBaseUrl || '';
     document.getElementById('redmine-api-key').value = config.redmineApiKey || '';
     document.getElementById('text-format').value = config.textFormat || 'auto';
   });
@@ -1317,11 +1317,25 @@ function notifyRemoteChanges(nextIssueColumns) {
   });
 }
 
+let promptedForSettings = false;
+
 async function loadFromAPI({ notifyChanges = false } = {}) {
   try {
     const response = boardMode === 'authored'
       ? await window.reddieAPI.fetchAuthoredIssues()
       : await window.reddieAPI.fetchIssues();
+    if (response.notConfigured) {
+      // Nothing to fetch until Settings has a URL + API key. Show whatever
+      // local cards exist (clearing the first-launch "Loading…"
+      // placeholders) and point the user at Settings - once per launch, not
+      // on every auto-refresh tick.
+      renderState(getState() || {});
+      if (!promptedForSettings) {
+        promptedForSettings = true;
+        openSettings();
+      }
+      return;
+    }
     if (response.error) {
       console.error('API Error:', response.error);
       showToast(`Couldn't load issues: ${response.error}`, 'error');
