@@ -118,6 +118,8 @@ Builds are unsigned/ad-hoc. macOS shows a Gatekeeper warning (right-click → Op
 
 ## CI/CD
 
+`.github/workflows/ci.yml` gates every pull request and push to `master` on one Linux runner: frozen-lockfile install, lint, unit tests, and e2e.
+
 `.github/workflows/build.yml` runs a 3-platform matrix on tag push:
 
 - Each platform builds natively on its own runner (no cross-compilation)
