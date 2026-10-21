@@ -1,0 +1,40 @@
+name: CI
+
+# Fast gate for every PR and every push to master. build.yml only runs on
+# version tags and manual dispatch (a full 3-platform build is too slow and
+# too expensive per commit), which used to mean PRs merged with no checks at
+# all - that is how a stale bun.lock slipped in and broke the next release
+# build. This runs the same install/lint/test/e2e steps on one Linux runner.
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+# A newer push to the same PR/branch makes the in-flight run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: oven-sh/setup-bun@v2
+
+      # --frozen-lockfile is the point: a package.json change without a
+      # matching bun.lock update must fail here, not at release time.
+      - run: bun install --frozen-lockfile
+
+      - run: bun run lint
+
+      - run: bun run test
+
+      # Electron needs a display; ubuntu runners only get one via xvfb-run.
+      - name: E2E
+        run: xvfb-run --auto-servernum bun run test:e2e
