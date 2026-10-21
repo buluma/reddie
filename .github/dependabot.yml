@@ -1,6 +1,10 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
+  # "bun", not "npm": the npm ecosystem only rewrites package.json and never
+  # touches bun.lock, so its PRs fail CI's frozen-lockfile install (and a
+  # merged one breaks the release build). Trade-off: GitHub doesn't offer
+  # Dependabot security-update PRs for bun, only version updates.
+  - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"
