@@ -1,6 +1,6 @@
 # Features
 
-Living list of what reddie currently supports, kept in sync with SHA-18 in Linear. Update this alongside any feature-level change.
+Living list of what reddie currently supports. Update this alongside any feature-level change.
 
 ## Board
 
