@@ -36,8 +36,11 @@ Never use these to skip a gate failure:
 ## Testing
 
 - Tests are grounded in real Redmine API response shapes, not invented fixtures.
-- Pure-logic functions (`buildColumnMapping`, `classifyStatus`) get unit tests.
-- IPC/HTTP glue is verified by launching the app and confirming no console errors.
+- Domain functions and asynchronous controllers get behavioral unit tests.
+- HTTP transport tests use local servers to exercise complete, malformed, and interrupted responses.
+- Electron tests use temporary profiles and dummy credentials. Exercise IPC/UI behavior with controlled responses, including failures and out-of-order completion.
+- Await the specific operation under test before asserting that stale data is absent; a frame or arbitrary delay does not prove the IPC callback finished.
+- Use `e2e/helpers/app.js` for the shared source/packaged launch path where applicable.
 - After changes touching packaged-app paths, test the built artifact in `dist/`.
 
 ## Git & Commits

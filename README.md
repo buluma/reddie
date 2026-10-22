@@ -18,7 +18,7 @@ Personal scratch cards (local to-dos with no ticket number) sit alongside real t
 
 - **Redmine instance** with REST API enabled
 - **Personal API key** (Redmine → My Account → API access key)
-- **Node.js v18+** (for building from source)
+- **Node.js 24.x** (for development and tests)
 
 ## Installation
 
@@ -88,16 +88,28 @@ bun start        # run from source
 
 ```bash
 bun start              # run from source
-bun run test               # vitest
+bun run test           # unit and local HTTP integration tests
 bun run build          # electron-builder, output in dist/
 ```
 
 ### Test strategy
 
-Tests are grounded in real Redmine API response shapes from `redmine.nasctech.com`, not invented fixtures. Pure-logic functions (`buildColumnMapping`, `classifyStatus`) get unit tests. IPC/HTTP glue is verified by launching the app and checking for console errors.
+`src/__tests__/` covers domain logic, asynchronous controllers, filesystem recovery,
+and the HTTP client against local servers. Electron tests in `e2e/` drive the
+preload/IPC boundary, rendered UI, delayed responses, connection switches, and
+restart recovery using temporary profiles and dummy credentials. They do not
+require access to a real Redmine instance.
 
 ```bash
-bunx vitest run src/__tests__/redmine-client.test.js   # single file
+bun run test
+bun run lint
+bun run test:e2e
+```
+
+The launch fixture also supports smoke checks against a packaged executable:
+
+```bash
+REDDIE_E2E_EXECUTABLE="/absolute/path/to/reddie" bunx playwright test e2e/app-launch.spec.js
 ```
 
 ## Building
@@ -158,7 +170,14 @@ See [Releases](https://github.com/buluma/reddie/releases) for version history.
 src/
 ├── main.js            # Electron main process — backend, IPC, state
 ├── redmine-client.js  # Redmine REST API client (raw http/https)
+├── connection-manager.js # Validated connection transactions
 ├── config-store.js    # Encrypted settings via safeStorage
+├── timer-controller.js # Serialized time-entry submission
+├── timer-store.js     # Atomic timer checkpoints and recovery data
+├── timer-recovery.js  # Explicit recovery decisions
+├── timer-ipc.js       # Timer IPC response contract
+├── board-loader.js    # Board request ordering and state merging
+├── issue-detail-loader.js # Detail and project metadata request ordering
 ├── preload.js         # IPC bridge (contextIsolation on)
 ├── renderer.js        # UI logic (vanilla DOM, no framework)
 ├── index.html         # Board + detail view
