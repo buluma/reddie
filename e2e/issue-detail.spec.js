@@ -49,8 +49,10 @@ test.describe('issue detail request ordering', () => {
     await page.evaluate(() => new Promise(requestAnimationFrame));
     await expect(page.locator('#detail-subject')).toHaveText('Second ticket');
     await page.locator('#detail-subject').fill('Edited second');
-    await page.evaluate(() => saveSubjectEdit());
+    await page.evaluate(() => { void saveSubjectEdit(); });
     expect(await app.evaluate(() => global.lastSubjectWrite)).toEqual({ issueId: 2, subject: 'Edited second' });
+    await pending(1);
+    await resolve(2, { issue: { id: 2, subject: 'Edited second' }, timeEntries: [] });
   });
   test('closing a pending detail invalidates both successes and errors', async () => {
     await page.evaluate(() => { void openIssueDetail(3); closeIssueDetail(); });
