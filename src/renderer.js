@@ -787,7 +787,12 @@ async function cancelTimerHere() {
 async function discardOtherTimerAndStartHere() {
   const issueId = currentDetailIssueId;
   const subject = currentDetailSubject;
+  const connection = connectionGeneration;
   if (!applyTimerResult(await window.reddieAPI.cancelTimer())) return;
+  if (connection !== connectionGeneration) {
+    showToast('Connection changed; start the timer again on the current account', 'error');
+    return;
+  }
   applyTimerResult(await window.reddieAPI.startTimer(issueId, subject));
 }
 

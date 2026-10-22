@@ -212,4 +212,21 @@ test.describe('issue detail request ordering', () => {
     expect(await app.evaluate(() => global.timerStarts)).toEqual([]);
   });
 
+  test('a connection save attempt cannot retarget a pending timer start', async () => {
+    await app.evaluate(({ ipcMain }) => {
+      global.timerStarts = [];
+      global.resolveCancel = null;
+      ipcMain.removeHandler('timer-cancel');
+      ipcMain.handle('timer-cancel', () => new Promise(resolve => { global.resolveCancel = resolve; }));
+    });
+    await page.evaluate(() => { window.pendingTimerStart = discardOtherTimerAndStartHere(); });
+    await expect.poll(() => app.evaluate(() => !!global.resolveCancel)).toBe(true);
+    page.once('dialog', dialog => dialog.accept());
+    await page.evaluate(() => saveSettings());
+    await app.evaluate(() => global.resolveCancel({ ok: true, state: { status: 'idle' } }));
+    await page.evaluate(() => window.pendingTimerStart);
+    expect(await app.evaluate(() => global.timerStarts)).toEqual([]);
+    await expect(page.locator('#toast-container')).toContainText('Connection changed');
+  });
+
 });
