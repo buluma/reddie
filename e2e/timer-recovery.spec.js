@@ -61,3 +61,36 @@ test('restart offers paused recovery and never automatically submits time', asyn
     fs.rmSync(userData, { recursive: true, force: true });
   }
 });
+
+test('reading saved preferences can skip an unused encrypted credential', async () => {
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'reddie-preferences-'));
+  let app;
+  try {
+    app = await electron.launch({ args: [path.join(__dirname, '..'), `--user-data-dir=${userData}`], env: { ...process.env, REDMINE_API_KEY: '', REDMINE_BASE_URL: '' } });
+    const result = await app.evaluate(({ app, safeStorage }) => {
+      const require = process.getBuiltinModule('module').createRequire(`${app.getAppPath()}/package.json`);
+      const fs = require('fs');
+      const path = require('path');
+      fs.writeFileSync(path.join(app.getPath('userData'), 'config.json'), JSON.stringify({
+        redmineApiKeyEncrypted: 'unused', textFormat: 'textile', columnOverrides: { 1: 'todo' },
+      }));
+      let decryptions = 0;
+      const available = safeStorage.isEncryptionAvailable;
+      const decrypt = safeStorage.decryptString;
+      try {
+        safeStorage.isEncryptionAvailable = () => true;
+        safeStorage.decryptString = () => { decryptions++; throw new Error('Unexpected Keychain access'); };
+        const preferences = require(path.join(app.getAppPath(), 'src/config-store.js')).loadPersistedConfig({ skipCredentials: true });
+        return { preferences, decryptions };
+      } finally {
+        safeStorage.isEncryptionAvailable = available;
+        safeStorage.decryptString = decrypt;
+      }
+    });
+    expect(result.decryptions).toBe(0);
+    expect(result.preferences).toMatchObject({ redmineApiKey: '', textFormat: 'textile', columnOverrides: { 1: 'todo' } });
+  } finally {
+    await app?.close();
+    fs.rmSync(userData, { recursive: true, force: true });
+  }
+});

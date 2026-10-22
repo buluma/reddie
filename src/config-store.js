@@ -13,7 +13,7 @@ function getConfigPath() {
   return path.join(app.getPath('userData'), 'config.json');
 }
 
-function loadPersistedConfig() {
+function loadPersistedConfig({ skipCredentials = false } = {}) {
   const configPath = getConfigPath();
   if (!fs.existsSync(configPath)) return {};
 
@@ -26,7 +26,7 @@ function loadPersistedConfig() {
   }
 
   let redmineApiKey = '';
-  if (raw.redmineApiKeyEncrypted) {
+  if (!skipCredentials && raw.redmineApiKeyEncrypted) {
     if (safeStorage.isEncryptionAvailable()) {
       try {
         redmineApiKey = safeStorage.decryptString(Buffer.from(raw.redmineApiKeyEncrypted, 'base64'));
@@ -36,7 +36,7 @@ function loadPersistedConfig() {
     } else {
       console.warn('OS-level encryption unavailable - cannot read the stored API key. Re-enter it in Settings.');
     }
-  } else if (raw.redmineApiKeyPlaintext) {
+  } else if (!skipCredentials && raw.redmineApiKeyPlaintext) {
     // Only ever written when safeStorage wasn't available at save time.
     redmineApiKey = raw.redmineApiKeyPlaintext;
   }
