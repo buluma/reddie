@@ -25,7 +25,7 @@ test('connection switching validates first, guards timers, and scopes board data
   let app;
   try {
     app = await electron.launch({ args: [path.join(__dirname, '..'), `--user-data-dir=${userData}`], env: { ...process.env, REDMINE_API_KEY: '', REDMINE_BASE_URL: '' } });
-    await expect.poll(() => app.windows().some(w => w.url().includes('index.html'))).toBe(true);
+    await expect.poll(() => app.windows().some(w => w.url().includes('index.html')), { timeout: 15000 }).toBe(true);
     const page = app.windows().find(w => w.url().includes('index.html'));
     await expect(page.locator('#settings-modal')).toHaveClass(/show/);
     await page.screenshot({ path: '/Users/shadowwalker/.no-mistakes/evidence/01M5H2YEZQCXP4AHSJ0YSEW2GM/connection-settings.png' });
@@ -96,7 +96,7 @@ test('environment credentials retain saved noncredential preferences at startup'
   let app;
   try {
     app = await electron.launch({ args: [path.join(__dirname, '..'), `--user-data-dir=${userData}`], env: { ...process.env, REDMINE_API_KEY: 'environment-key', REDMINE_BASE_URL: base } });
-    await expect.poll(() => app.windows().some(w => w.url().includes('index.html'))).toBe(true);
+    await expect.poll(() => app.windows().some(w => w.url().includes('index.html')), { timeout: 15000 }).toBe(true);
     const page = app.windows().find(w => w.url().includes('index.html'));
     await expect.poll(async () => (await page.evaluate(() => window.reddieAPI.getConfig())).connectionScope).toBe(`${base}|9`);
     const config = await page.evaluate(() => window.reddieAPI.getConfig());
@@ -105,6 +105,50 @@ test('environment credentials retain saved noncredential preferences at startup'
     expect(config.columnOverrides).toEqual({ 1: 'todo' });
     expect(config.windowTransparency).toBe(true);
     await page.screenshot({ path: '/Users/shadowwalker/.no-mistakes/evidence/01M5H2YEZQCXP4AHSJ0YSEW2GM/environment-preferences.png' });
+  } finally {
+    await app?.close();
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    fs.rmSync(userData, { recursive: true, force: true });
+  }
+});
+
+test('a failed atomic config replacement preserves the prior saved settings', async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const http = require('http');
+  const server = http.createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    const payload = {
+      '/users/current.json': { user: { id: 3, firstname: 'Atomic' } },
+      '/issue_statuses.json': { issue_statuses: [{ id: 1, name: 'New' }] },
+      '/enumerations/time_entry_activities.json': { time_entry_activities: [] },
+      '/enumerations/issue_priorities.json': { issue_priorities: [] },
+    }[new URL(req.url, 'http://localhost').pathname] || {};
+    res.end(JSON.stringify(payload));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'reddie-atomic-config-'));
+  let app;
+  try {
+    app = await electron.launch({ args: [path.join(__dirname, '..'), `--user-data-dir=${userData}`], env: { ...process.env, REDMINE_API_KEY: '', REDMINE_BASE_URL: '' } });
+    await expect.poll(() => app.windows().some(w => w.url().includes('index.html')), { timeout: 15000 }).toBe(true);
+    await app.evaluate(({ safeStorage }) => { safeStorage.isEncryptionAvailable = () => false; });
+    const page = app.windows().find(w => w.url().includes('index.html'));
+    const saved = await page.evaluate(base => window.reddieAPI.saveConfig({ redmineBaseUrl: base, redmineApiKey: 'atomic-key', textFormat: 'markdown' }), base);
+    expect(saved.ok).toBe(true);
+    const configPath = path.join(userData, 'config.json');
+    const before = fs.readFileSync(configPath, 'utf8');
+
+    fs.chmodSync(userData, 0o500);
+    const failed = await page.evaluate(base => window.reddieAPI.saveConfig({ redmineBaseUrl: base, redmineApiKey: 'atomic-key', textFormat: 'textile' }), base);
+    fs.chmodSync(userData, 0o700);
+    expect(failed.error).toMatch(/EACCES|permission denied/i);
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(before);
+    expect(fs.readdirSync(userData).filter(name => name.endsWith('.tmp'))).toEqual([]);
+    expect((await page.evaluate(() => window.reddieAPI.getConfig())).textFormat).toBe('markdown');
   } finally {
     await app?.close();
     server.closeAllConnections();

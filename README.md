@@ -64,7 +64,7 @@ bun start        # run from source
 - **Detail view** — Click any card for description, comments, time tracking, attachments, sub-tasks.
 - **New ticket** — Click "New Ticket…" in the header, pick a project and tracker.
 - **Timer** — Start/Pause/Resume/Complete on any ticket. Completing logs time to Redmine.
-- **Settings** — Column mapping overrides, Redmine connection, theme.
+- **Settings** — Column mapping overrides, Redmine connection, theme. Connection changes are checked before saving; switching accounts requires an idle timer.
 
 ## Features
 
