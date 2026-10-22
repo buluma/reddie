@@ -112,6 +112,98 @@ test.describe('issue detail request ordering', () => {
     await page.evaluate(() => new Promise(requestAnimationFrame));
     await expect(page.locator('#comment-input')).toHaveValue('New draft');
     await expect(page.locator('#detail-subject')).toHaveText('Another issue');
+    await expect(page.locator('#toast-container .toast', { hasText: 'Comment posted' })).toHaveCount(1);
+  });
+  test('an older subject save still reports success and refreshes the board', async () => {
+    await app.evaluate(({ ipcMain }) => {
+      global.boardFetches = 0;
+      ipcMain.removeHandler('fetch-issues');
+      ipcMain.handle('fetch-issues', () => { global.boardFetches += 1; return { notConfigured: true }; });
+      ipcMain.removeHandler('update-subject');
+      ipcMain.handle('update-subject', (event, data) => new Promise(resolve => {
+        global.lastSubjectWrite = data;
+        global.resolveSubject = resolve;
+      }));
+    });
+    await page.evaluate(() => { void openIssueDetail(8); });
+    await pending(1);
+    await resolve(8, { issue: { id: 8, subject: 'Original subject' } });
+    await expect(page.locator('#detail-subject')).toHaveText('Original subject');
+    await page.locator('#detail-subject').fill('Renamed subject');
+    await page.evaluate(() => { void saveSubjectEdit(); });
+    await expect.poll(() => app.evaluate(() => !!global.resolveSubject)).toBe(true);
+    await page.evaluate(() => { void openIssueDetail(9); });
+    await pending(1);
+    await resolve(9, { issue: { id: 9, subject: 'Other subject' } });
+    await expect(page.locator('#detail-subject')).toHaveText('Other subject');
+    await expect(page.locator('#toast-container .toast', { hasText: 'Subject updated' })).toHaveCount(0, { timeout: 10000 });
+    await app.evaluate(() => global.resolveSubject({ ok: true }));
+    await expect(page.locator('#toast-container .toast', { hasText: 'Subject updated' })).toHaveCount(1);
+    await expect.poll(() => app.evaluate(() => global.boardFetches)).toBe(1);
+    expect(await app.evaluate(() => global.lastSubjectWrite)).toEqual({ issueId: 8, subject: 'Renamed subject' });
+    await expect(page.locator('#detail-subject')).toHaveText('Other subject');
+  });
+  test('an older description save still reports success without reloading the new view', async () => {
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler('update-issue');
+      ipcMain.handle('update-issue', (event, data) => new Promise(resolve => {
+        global.lastIssueWrite = data;
+        global.resolveIssueWrite = resolve;
+      }));
+    });
+    await page.evaluate(() => { void openIssueDetail(10); });
+    await pending(1);
+    await resolve(10, { issue: { id: 10, subject: 'Described issue', description: 'Old text' } });
+    await expect(page.locator('#detail-subject')).toHaveText('Described issue');
+    await page.evaluate(() => {
+      editDescription();
+      document.getElementById('description-input').value = 'New text';
+      void saveDescriptionEdit();
+    });
+    await expect.poll(() => app.evaluate(() => !!global.resolveIssueWrite)).toBe(true);
+    await page.evaluate(() => { void openIssueDetail(11); });
+    await pending(1);
+    await resolve(11, { issue: { id: 11, subject: 'Undescribed issue' } });
+    await expect(page.locator('#detail-subject')).toHaveText('Undescribed issue');
+    await app.evaluate(() => global.resolveIssueWrite({ ok: true }));
+    await expect(page.locator('#toast-container .toast', { hasText: 'Description updated' })).toHaveCount(1);
+    await pending(0);
+    expect(await app.evaluate(() => global.lastIssueWrite)).toEqual({ issueId: 10, fields: { description: 'New text' } });
+    await expect(page.locator('#detail-subject')).toHaveText('Undescribed issue');
+  });
+  test('discarding another timer starts it for the issue where it was clicked', async () => {
+    await app.evaluate(({ ipcMain }) => {
+      global.timerStarts = [];
+      ipcMain.removeHandler('timer-cancel');
+      ipcMain.handle('timer-cancel', () => new Promise(resolve => { global.resolveCancel = resolve; }));
+      ipcMain.removeHandler('timer-start');
+      ipcMain.handle('timer-start', (event, data) => {
+        global.timerStarts.push(data);
+        return { ok: true, state: { status: 'idle' } };
+      });
+    });
+    await page.evaluate(() => { void openIssueDetail(12); });
+    await pending(1);
+    await resolve(12, { issue: { id: 12, subject: 'Timer target' } });
+    await expect(page.locator('#detail-subject')).toHaveText('Timer target');
+    await page.evaluate(() => { void discardOtherTimerAndStartHere(); });
+    await expect.poll(() => app.evaluate(() => !!global.resolveCancel)).toBe(true);
+    await page.evaluate(() => { void openIssueDetail(13); });
+    await pending(1);
+    await resolve(13, { issue: { id: 13, subject: 'Different issue' } });
+    await expect(page.locator('#detail-subject')).toHaveText('Different issue');
+    await app.evaluate(() => global.resolveCancel({ ok: true, state: { status: 'idle' } }));
+    await expect.poll(() => app.evaluate(() => global.timerStarts)).toEqual([{ ticketId: 12, subject: 'Timer target' }]);
+  });
+  test('a failed discard does not start a timer', async () => {
+    await app.evaluate(({ ipcMain }) => {
+      global.timerStarts = [];
+      ipcMain.removeHandler('timer-cancel');
+      ipcMain.handle('timer-cancel', () => ({ error: 'Cancel failed' }));
+    });
+    await page.evaluate(() => discardOtherTimerAndStartHere());
+    await expect(page.locator('#toast-container .toast', { hasText: 'Cancel failed' })).toHaveCount(1);
+    expect(await app.evaluate(() => global.timerStarts)).toEqual([]);
   });
 
 });

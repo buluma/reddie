@@ -627,10 +627,10 @@ async function saveDescriptionEdit() {
     if (result && result.error) {
       throw new Error(result.error);
     }
+    showToast('Description updated', 'success');
     if (!isCurrentDetail(issueId, generation)) return;
     currentDetailDescription = description;
-    showToast('Description updated', 'success');
-    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
+    await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't update description: ${err.message || err}`, 'error');
     if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
@@ -766,8 +766,10 @@ async function cancelTimerHere() {
 }
 
 async function discardOtherTimerAndStartHere() {
-  await window.reddieAPI.cancelTimer();
-  await startTimerHere();
+  const issueId = currentDetailIssueId;
+  const subject = currentDetailSubject;
+  if (!applyTimerResult(await window.reddieAPI.cancelTimer())) return;
+  applyTimerResult(await window.reddieAPI.startTimer(issueId, subject));
 }
 
 async function completeTimerHere() {
@@ -798,7 +800,7 @@ async function saveSubjectEdit() {
   if (subject === currentDetailSubject) return;
   if (!subject) {
     showToast('Subject cannot be empty', 'error');
-    if (isCurrentDetail(issueId, generation)) el.textContent = currentDetailSubject;
+    el.textContent = currentDetailSubject;
     return;
   }
   try {
@@ -806,9 +808,8 @@ async function saveSubjectEdit() {
     if (result && result.error) {
       throw new Error(result.error);
     }
-    if (!isCurrentDetail(issueId, generation)) return;
-    currentDetailSubject = subject;
     showToast('Subject updated', 'success');
+    if (isCurrentDetail(issueId, generation)) currentDetailSubject = subject;
     await loadFromAPI();
   } catch (err) {
     showToast(`Couldn't update subject: ${err.message || err}`, 'error');
@@ -832,9 +833,9 @@ async function postComment() {
       showToast(`Couldn't post comment: ${result.error}`, 'error');
       return;
     }
+    showToast('Comment posted', 'success');
     if (!isCurrentDetail(issueId, generation)) return;
     input.value = '';
-    showToast('Comment posted', 'success');
     // Re-fetch so the new comment shows up in the activity list
     const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
     if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
