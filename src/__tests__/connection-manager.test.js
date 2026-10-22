@@ -41,6 +41,18 @@ describe('connection transactions', () => {
     await expect(manager.save({ redmineApiKey: 'new' })).rejects.toThrow('Disk full');
     expect(manager.getState()).toBe(original);
   });
+  it('rejects malformed metadata without persisting or replacing the active connection', async () => {
+    const { manager, persist, clients } = setup();
+    await manager.check();
+    const original = manager.getState();
+    clients.set('bad-metadata', {
+      ...original.client,
+      listStatuses: async () => null,
+    });
+    await expect(manager.save({ redmineApiKey: 'bad-metadata' })).rejects.toThrow(/metadata/);
+    expect(manager.getState()).toBe(original);
+    expect(persist).not.toHaveBeenCalled();
+  });
   it('refuses switching with an active timer and preserves the original connection', async () => {
     const { manager, persist } = setup({ beforeCommit: (next, prev) => {
       if (next.scope !== prev.scope) throw new Error('Complete or cancel the active timer');

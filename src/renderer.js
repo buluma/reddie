@@ -73,10 +73,10 @@ async function loadRedmineBaseUrl() {
       try {
         const state = JSON.parse(legacy);
         const scopedKey = `${key}:${encodeURIComponent(boardScope)}`;
-        if (!localStorage.getItem(scopedKey)) {
-          const localOnly = Object.fromEntries(columns.map(column => [column, (state[column] || []).filter(task => !task.issueId)]));
-          localStorage.setItem(scopedKey, JSON.stringify(localOnly));
-        }
+        const scoped = JSON.parse(localStorage.getItem(scopedKey) || '{}');
+        const localOnly = Object.fromEntries(columns.map(column => [column, (state[column] || []).filter(task => !task.issueId)]));
+        const merged = Object.fromEntries(columns.map(column => [column, [...(scoped[column] || []), ...localOnly[column]]]));
+        localStorage.setItem(scopedKey, JSON.stringify(merged));
         localStorage.removeItem(key);
       } catch { /* Preserve malformed legacy state for manual recovery. */ }
     }
@@ -523,7 +523,6 @@ let currentDetailSubject = null;
 // only ever holds the *rendered* HTML, so editing needs the source stashed
 // separately (same reasoning as currentDetailSubject above).
 let currentDetailDescription = null;
-
 // SHA-24 time tracker. One active timer app-wide, held in main.js
 // (reddieTimer's pure state shape) - mirrored here so the widget can render
 // without an IPC round trip on every tick. `timerTickInterval` repaints the
@@ -535,6 +534,9 @@ let timerTickInterval = null;
 
 async function openIssueDetail(issueId) {
   const generation = ++detailGeneration;
+  const connection = connectionGeneration;
+  const isCurrent = () => isCurrentDetail(issueId, generation)
+    && connection === connectionGeneration;
   currentDetailIssueId = issueId;
   document.getElementById('issue-detail-modal').classList.add('show');
   document.getElementById('detail-subject').textContent = 'Loading…';
@@ -542,7 +544,7 @@ async function openIssueDetail(issueId) {
   document.getElementById('comment-input').value = '';
 
   const result = await window.reddieAPI.fetchIssueDetail(issueId);
-  if (!isCurrentDetail(issueId, generation)) return;
+  if (!isCurrent()) return;
   if (!result || result.error || !result.issue) {
     document.getElementById('detail-subject').textContent = 'Error';
     document.getElementById('detail-body').innerHTML = `<div class="detail-empty">${escapeHtml((result && result.error) || 'Failed to load issue.')}</div>`;
@@ -558,7 +560,7 @@ async function openIssueDetail(issueId) {
         window.reddieAPI.fetchProjectVersions(projectId),
       ])
     : [{ items: [] }, { items: [] }, { items: [] }, { items: [] }];
-  if (!isCurrentDetail(issueId, generation)) return;
+  if (!isCurrent()) return;
   currentDetailMembers = (membersResult && membersResult.items) || [];
   currentDetailTrackers = (trackersResult && trackersResult.items) || [];
   currentDetailCategories = (categoriesResult && categoriesResult.items) || [];
@@ -1116,16 +1118,15 @@ async function saveSettings() {
   };
 
   // Save to main process
-  connectionGeneration += 1;
   const result = await window.reddieAPI.saveConfig(newConfig);
 
   if (result.error) {
     setConnectionStatus('error', result.error);
     alert('Error: ' + result.error);
   } else {
-    connectionGeneration += 1;
     textFormatSetting = newConfig.textFormat || 'auto';
     if (result.scopeChanged) {
+      connectionGeneration += 1;
       closeIssueDetail();
       knownIssueColumns = {};
       imageDataUrlCache.clear();

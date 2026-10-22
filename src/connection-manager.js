@@ -27,6 +27,7 @@ function createConnectionManager({ initialConfig, createClient, persist, beforeC
       client.getCurrentUser(), client.listStatuses(), client.listActivities(), client.listPriorities(),
     ]);
     if (!user || !user.id) throw new Error('Redmine did not return a current user');
+    if (![statuses, activities, priorities].every(Array.isArray)) throw new Error('Redmine returned invalid connection metadata');
     return { config: normalized, client, scope: connectionScope(normalized.redmineBaseUrl, user.id), metadata: { user, statuses, activities, priorities } };
   }
   return {
