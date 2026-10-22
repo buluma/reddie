@@ -118,8 +118,9 @@ const RETRY_BACKOFF_MS = 300;
 // Whether a failed request should be retried. GET is the only idempotent
 // method here, so writes are never retried - a blind PUT/POST retry could
 // double-post a comment or time entry. A missing statusCode means the request
-// never got an HTTP response (network error / timeout), which is exactly the
-// transient case worth retrying; a present statusCode is only transient for
+// never got a complete, valid HTTP response (network error / timeout /
+// interrupted body / malformed 2xx JSON), which is the transient case worth
+// retrying; a present statusCode is only transient for
 // 5xx (a 4xx like 422/404/403 is a client error that won't fix itself).
 function isRetriable(method, error) {
   if (method !== 'GET') return false;

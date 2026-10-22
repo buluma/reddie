@@ -31,7 +31,7 @@ Never use these to skip a gate failure:
 
 ## Defensive Code
 
-- **Retry**: `withRetry` in `src/redmine-client.js` retries transient GET failures (network errors, timeouts, 5xx) up to 2 times with linear backoff. Writes (PUT/POST) are never retried.
+- **Retry**: `withRetry` in `src/redmine-client.js` retries transient GET failures (network errors, timeouts, interrupted or malformed responses, 5xx) up to 2 times with linear backoff. Writes (PUT/POST) are never retried.
 
 ## Testing
 
