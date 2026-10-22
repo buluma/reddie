@@ -7,6 +7,8 @@ const { loadPersistedConfig, persistConfig, loadWindowTransparencySetting } = re
 const { autoUpdater } = require('electron-updater');
 const { createTimerController } = require('./timer-controller');
 const { createConnectionManager } = require('./connection-manager');
+const { createTimerStore } = require('./timer-store');
+const { createTimerRecovery } = require('./timer-recovery');
 
 // Auto-download/install is off on purpose: macOS's Squirrel.Mac (the
 // updater apply step electron-updater uses under the hood) requires the
@@ -153,6 +155,9 @@ const iconPath = path.join(__dirname, '..', 'build', 'icon.png');
 let isQuitting = false;
 app.on('before-quit', () => {
   isQuitting = true;
+  try { timerController.checkpoint(); } catch (err) {
+    console.error('Could not save timer before quitting:', err.message);
+  }
 });
 
 // Tray: a plain colored dot rather than a recolored copy of the app icon -
@@ -173,8 +178,12 @@ const TRAY_COLORS = { none: '#808080', low: '#30d158', medium: '#ff9f0a', high: 
 // does - it must survive the window being hidden-to-tray and a renderer
 // reload. In-memory only for now: a timer does not survive a full app quit,
 // same scope as the rest of the tray state.
+let timerStore;
+let timerRecovery;
 const timerController = createTimerController({
   submit: (ticketId, entry) => client.addTimeEntry(ticketId, entry),
+  persist: (snapshot) => timerStore.save(snapshot),
+  getConnectionScope: () => getConnectionManager().getState().scope,
 });
 
 // Pushes the current timer to both the main window (for the issue detail
@@ -469,6 +478,30 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  timerStore = createTimerStore(path.join(app.getPath('userData'), 'timer.json'));
+  timerRecovery = createTimerRecovery({
+    store: timerStore,
+    controller: timerController,
+    getScope: () => getConnectionManager().getState().scope,
+    choose: async ({ snapshot, matches }) => {
+      const uncertain = snapshot.submissionPending;
+      const buttons = matches
+        ? [uncertain ? 'I checked Redmine: recover paused timer' : 'Recover paused timer', 'Discard timer', 'Keep saved for later']
+        : ['Keep saved for later', 'Discard timer'];
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: uncertain ? 'warning' : 'question',
+        title: 'Recover saved timer',
+        message: `Saved timer for #${snapshot.state.ticketId}: ${snapshot.state.subject}`,
+        detail: !matches
+          ? 'This timer belongs to another Redmine account. Reconnect that account to recover it. New timers are blocked until you recover or discard it.'
+          : uncertain
+            ? 'The app stopped while submitting this time entry. Check Redmine first: it may already have been logged. Recovery never submits automatically.'
+            : 'Recover the saved elapsed time as paused. Time while the app was closed is not counted.',
+        buttons, defaultId: uncertain ? buttons.length - 1 : 0, cancelId: matches ? buttons.length - 1 : 0,
+      });
+      return response === 1 ? 'discard' : matches && response === 0 ? 'recover' : 'keep';
+    },
+  });
   // Read ahead of the full config load below (which is gated behind the
   // .env-api-key check) - windowTransparency has to be known before
   // createWindow() runs since `transparent` can't be set on an existing
@@ -505,6 +538,15 @@ app.whenReady().then(async () => {
   if (config.redmineApiKey) {
     await connect();
   }
+
+  await timerRecovery.offer();
+  broadcastTimerState();
+  const timerCheckpoint = setInterval(() => {
+    try { timerController.checkpoint(); } catch (err) {
+      console.error('Could not checkpoint timer:', err.message);
+    }
+  }, 15000);
+  timerCheckpoint.unref();
 
   // Only makes sense against a packaged build with real release metadata -
   // in dev mode (npm start) there's no update feed to check and
@@ -547,7 +589,10 @@ ipcMain.handle('get-config', async () => {
 ipcMain.handle('save-config', async (event, newConfig) => {
   try {
     const { redmineBaseUrl, redmineApiKey, textFormat } = newConfig;
-    return await getConnectionManager().save({ redmineBaseUrl, redmineApiKey, textFormat });
+    const result = await getConnectionManager().save({ redmineBaseUrl, redmineApiKey, textFormat });
+    await timerRecovery.offer();
+    broadcastTimerState();
+    return result;
   } catch (err) {
     return { error: err.message };
   }
@@ -763,17 +808,30 @@ ipcMain.handle('add-timelog', async (event, { issueId, hours, activityId, commen
 // renderer decides what to do about that (offer to cancel/complete the other
 // one), this layer just relays it, same {error} convention as every other
 // handler here.
+ipcMain.handle('timer-recover', async () => {
+  try {
+    const hadPending = timerRecovery.hasPending();
+    await timerRecovery.offer();
+    broadcastTimerState();
+    return { ok: true, hadPending, state: timerController.getState() };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 ipcMain.handle('timer-get-state', async () => timerController.getState());
 
 for (const action of ['start', 'pause', 'reset', 'cancel', 'complete']) {
   ipcMain.handle(`timer-${action}`, async (event, payload = {}) => {
     try {
+      if (action === 'start' && timerRecovery.hasPending()) throw new Error('Recover or discard the saved timer in Settings before starting another');
       const result = action === 'complete'
         ? await timerController.complete(payload)
         : { state: timerController[action](payload) };
       broadcastTimerState();
       return { ok: true, ...result };
     } catch (err) {
+      broadcastTimerState();
       return { error: err.message };
     }
   });

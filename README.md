@@ -71,7 +71,7 @@ bun start        # run from source
 - **Auto-mapped Kanban** — Statuses classified dynamically from your Redmine instance via `classifyStatus` (name + `is_closed` heuristic), not hardcoded
 - **Column overrides** — Settings → Column Mapping forces a status into a different column when the heuristic gets it wrong
 - **Full ticket detail** — Description, activity/comment history, time entries, attachments, sub-tasks, custom fields (read-only)
-- **Time tracking** — Log hours manually or run a live timer with start/pause/complete. One active timer app-wide.
+- **Time tracking** — Log hours manually or run a live timer with start/pause/complete. One active timer app-wide. Timer transitions and 15-second checkpoints are saved locally. On restart, recover the saved time as paused or discard it; downtime is excluded. A crash during submission requires checking Redmine before recovery to avoid logging twice. Settings → Recover saved timer reopens the recovery choice.
 - **Scratch cards** — Personal to-dos alongside real tickets, stored locally, never synced
 - **Cross-platform** — macOS, Windows, Linux builds from a single CI pipeline
 - **Auto-update checker** — Detects new releases on launch, links to GitHub Releases (no auto-download without a code-signing cert)
