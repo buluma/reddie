@@ -483,7 +483,7 @@ app.whenReady().then(async () => {
     store: timerStore,
     controller: timerController,
     getScope: () => getConnectionManager().getState().scope,
-    choose: async ({ snapshot, matches }) => {
+    choose: async ({ snapshot, matches, inSession }) => {
       const uncertain = snapshot.submissionPending;
       const buttons = matches
         ? [uncertain ? 'I checked Redmine: recover paused timer' : 'Recover paused timer', 'Discard timer', 'Keep saved for later']
@@ -495,7 +495,7 @@ app.whenReady().then(async () => {
         detail: !matches
           ? 'This timer belongs to another Redmine account. Reconnect that account to recover it. New timers are blocked until you recover or discard it.'
           : uncertain
-            ? 'The app stopped while submitting this time entry. Check Redmine first: it may already have been logged. Recovery never submits automatically.'
+            ? `${inSession ? 'The response to this time entry was lost.' : 'The app stopped while submitting this time entry.'} Check Redmine first: it may already have been logged. Recovery never submits automatically.`
             : 'Recover the saved elapsed time as paused. Time while the app was closed is not counted.',
         buttons, defaultId: matches && uncertain ? 2 : 0, cancelId: matches ? buttons.length - 1 : 0,
       });

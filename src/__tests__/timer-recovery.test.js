@@ -104,7 +104,7 @@ describe('durable timer recovery', () => {
     await expect(controller.complete()).rejects.toThrow();
     expect(s.submit).toHaveBeenCalledTimes(1);
   });
-  it('preserves rejected-submission uncertainty across checkpoints and pause/resume', async () => {
+  it('preserves rejected-submission uncertainty across checkpoints and blocks timer transitions', async () => {
     const s = setup();
     const controller = createTimerController({ ...s.options, submit: async () => { throw new Error('Response lost'); } });
     controller.start({ ticketId: 42, subject: 'Work' });
@@ -112,9 +112,9 @@ describe('durable timer recovery', () => {
     await expect(controller.complete()).rejects.toThrow('Response lost');
     controller.checkpoint();
     expect(s.store.load().submissionPending).toBe(true);
-    controller.pause();
+    expect(() => controller.pause()).toThrow(/Reconcile or discard/);
     expect(s.store.load().submissionPending).toBe(true);
-    controller.start({ ticketId: 42, subject: 'Work' });
+    expect(() => controller.start({ ticketId: 42, subject: 'Work' })).toThrow(/Reconcile or discard/);
     controller.checkpoint();
     const snapshot = s.store.load();
     expect(snapshot.submissionPending).toBe(true);
@@ -122,6 +122,19 @@ describe('durable timer recovery', () => {
     expect(() => restarted.restore(snapshot)).toThrow(/Check Redmine/);
     controller.cancel();
     expect(s.store.load()).toBeNull();
+  });
+  it('offers in-session uncertainty for reconciliation without resubmitting', async () => {
+    const s = setup();
+    const controller = createTimerController({ ...s.options, submit: async () => { throw new Error('Response lost'); } });
+    controller.start({ ticketId: 42, subject: 'Work' });
+    s.at(61000);
+    await expect(controller.complete()).rejects.toThrow('Response lost');
+    const recovery = createTimerRecovery({ store: s.store, controller, getScope: s.options.getConnectionScope, choose: async ({ snapshot }) => snapshot.submissionPending ? 'recover' : 'keep' });
+    expect(recovery.hasPending()).toBe(true);
+    await recovery.offer();
+    expect(controller.getState().status).toBe('paused');
+    expect(controller.getUncertainSnapshot()).toBeNull();
+    expect(recovery.hasPending()).toBe(false);
   });
   it('ignores corrupt persisted data without crashing startup', () => {
     const s = setup();

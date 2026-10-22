@@ -4,19 +4,26 @@
 function createTimerRecovery({ store, controller, getScope, choose }) {
   let pending = store.load();
   let prompting = false;
+  function currentPending() {
+    return controller.getUncertainSnapshot?.() || pending;
+  }
   return {
-    hasPending: () => !!pending,
+    hasPending: () => !!currentPending(),
     async offer() {
-      if (!pending || prompting) return;
+      const candidate = currentPending();
+      if (!candidate || prompting) return;
       prompting = true;
       try {
-        const matches = pending.connectionScope === getScope() && !!getScope();
-        const decision = await choose({ snapshot: pending, matches });
+        const inSession = !!controller.getUncertainSnapshot?.();
+        const matches = candidate.connectionScope === getScope() && !!getScope();
+        const decision = await choose({ snapshot: candidate, matches, inSession });
         if (decision === 'discard') {
-          store.clear();
+          if (controller.getUncertainSnapshot?.()) controller.cancel();
+          else store.clear();
           pending = null;
         } else if (decision === 'recover' && matches) {
-          controller.restore(pending, { acknowledgePending: true });
+          if (controller.getUncertainSnapshot?.()) controller.reconcileUncertain();
+          else controller.restore(candidate, { acknowledgePending: true });
           pending = null;
         }
       } finally {

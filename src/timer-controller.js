@@ -15,8 +15,12 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
   function assertAvailable() {
     if (submitting) throw new Error('Time entry submission is in progress');
   }
+  function assertCertain(action) {
+    if (uncertainSubmission && action !== timer.cancel) throw new Error('Reconcile or discard the uncertain time entry first');
+  }
   function transition(action, ...args) {
     assertAvailable();
+    assertCertain(action);
     const next = action(state, ...args);
     const scope = next.status === 'idle' ? '' : (state.status === 'idle' ? getConnectionScope() : connectionScope);
     const uncertain = next.status === 'idle' ? false : uncertainSubmission;
@@ -29,6 +33,16 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
   return {
     getState: () => state,
     isSubmitting: () => submitting,
+    getUncertainSnapshot: () => uncertainSubmission ? { version: 1, state, connectionScope, savedAt: now(), submissionPending: true } : null,
+    reconcileUncertain() {
+      assertAvailable();
+      if (!uncertainSubmission) throw new Error('No uncertain time entry to reconcile');
+      const next = state.status === 'running' ? timer.pause(state, now()) : state;
+      save(next, connectionScope, false);
+      state = next;
+      uncertainSubmission = false;
+      return state;
+    },
     checkpoint() { if (state.status !== 'idle') save(); },
     restore(snapshot, { acknowledgePending = false } = {}) {
       assertAvailable();
@@ -52,6 +66,7 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
     cancel: () => transition(timer.cancel),
     async complete(entry = {}) {
       assertAvailable();
+      assertCertain();
       if (connectionScope !== getConnectionScope()) throw new Error('Timer belongs to another Redmine account');
       const { state: completed, submission } = timer.complete(state, now());
       const hours = timer.msToHours(submission.elapsedMs);
