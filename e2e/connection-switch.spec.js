@@ -5,6 +5,8 @@ const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 
 test('connection switching validates first, guards timers, and scopes board data', async () => {
+  let holdFirstIssueList = false;
+  let releaseFirstIssueList;
   const server = http.createServer((req, res) => {
     res.setHeader('Content-Type', 'application/json');
     const key = req.headers['x-redmine-api-key'];
@@ -17,6 +19,13 @@ test('connection switching validates first, guards timers, and scopes board data
       '/enumerations/issue_priorities.json': { issue_priorities: [] },
       '/issues.json': { issues: [], total_count: 0 },
     }[pathname] || {};
+    if (pathname === '/issues.json' && key === 'first' && holdFirstIssueList) {
+      holdFirstIssueList = false;
+      releaseFirstIssueList = () => {
+        res.end(JSON.stringify({ issues: [{ id: 101, subject: 'Old account ticket', status: { id: 1 } }], total_count: 1 }));
+      };
+      return;
+    }
     res.end(JSON.stringify(payload));
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -39,6 +48,9 @@ test('connection switching validates first, guards timers, and scopes board data
     await save('first');
     const first = await page.evaluate(() => window.reddieAPI.getConfig());
     expect(first.connectionScope).toBe(`${base}|1`);
+    holdFirstIssueList = true;
+    await page.evaluate(() => { void loadFromAPI(); });
+    await expect.poll(() => !!releaseFirstIssueList).toBe(true);
     const firstKey = await page.evaluate(() => getStateKey());
     await page.evaluate(() => { addTask('todo'); cacheImageDataUrl('/private.png', 'data:image/png;base64,AA=='); });
     const rejected = await page.evaluate(base => window.reddieAPI.saveConfig({ redmineBaseUrl: base, redmineApiKey: 'bad' }), base);
@@ -56,6 +68,8 @@ test('connection switching validates first, guards timers, and scopes board data
     expect(await page.evaluate(() => getStateKey())).not.toBe(firstKey);
     await expect(page.locator('#todo-list .task-card')).toHaveCount(0);
     expect(await page.evaluate(() => imageDataUrlCache.size)).toBe(0);
+    releaseFirstIssueList();
+    await expect.poll(async () => (await page.locator('.task-list').allTextContents()).some(text => text.includes('Old account ticket'))).toBe(false);
     await page.locator('.settings-btn').click();
     await save('first');
     await expect(page.locator('#todo-list .task-card')).toHaveCount(1);
