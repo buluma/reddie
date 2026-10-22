@@ -4,6 +4,11 @@ const path = require('path');
 const http = require('http');
 const { test, expect, _electron: electron } = require('@playwright/test');
 
+async function getMainWindow(app) {
+  await expect.poll(() => app.windows().find(window => window.url().includes('index.html')) || null).not.toBeNull();
+  return app.windows().find(window => window.url().includes('index.html'));
+}
+
 test('restart offers paused recovery and never automatically submits time', async () => {
   const waiting = [];
   let ready = false;
@@ -122,7 +127,7 @@ test('account mismatch keeps saved work and blocks replacement timers', async ()
       global.recoveryDialogs = [];
       dialog.showMessageBox = async (window, options) => { global.recoveryDialogs.push(options); return { response: 0 }; };
     });
-    const page = await app.waitForEvent('window');
+    const page = await getMainWindow(app);
     await expect.poll(() => app.evaluate(() => global.recoveryDialogs.length)).toBe(1);
     const prompt = await app.evaluate(() => global.recoveryDialogs[0]);
     expect(prompt.buttons).toEqual(['Keep saved for later', 'Discard timer']);
@@ -134,12 +139,10 @@ test('account mismatch keeps saved work and blocks replacement timers', async ()
     await page.locator('.settings-btn').click();
     await expect(page.locator('#settings-modal')).toHaveClass(/show/);
     await expect(page.locator('[data-click="recover-timer"]')).toBeVisible();
-    await page.screenshot({ path: '/Users/shadowwalker/.no-mistakes/evidence/01M5H3ZVGZB6S17D3WKQK7MKFR/timer-settings-recovery.png' });
     await page.locator('[data-click="recover-timer"]').click();
     await expect.poll(() => app.evaluate(() => global.recoveryDialogs.length)).toBe(2);
     const afterKeep = await page.evaluate(() => window.reddieAPI.startTimer(44, 'Still blocked'));
     expect(afterKeep.error).toMatch(/Recover or discard/);
-    await page.screenshot({ path: '/Users/shadowwalker/.no-mistakes/evidence/01M5H3ZVGZB6S17D3WKQK7MKFR/timer-account-mismatch.png' });
   } finally {
     await app?.close();
     server.closeAllConnections();
@@ -177,7 +180,7 @@ test('pending submission requires an explicit Redmine reconciliation choice', as
       global.recoveryDialogs = [];
       dialog.showMessageBox = async (window, options) => { global.recoveryDialogs.push(options); return { response: 2 }; };
     });
-    const page = await app.waitForEvent('window');
+    const page = await getMainWindow(app);
     await expect.poll(() => app.evaluate(() => global.recoveryDialogs.length)).toBe(1);
     const prompt = await app.evaluate(() => global.recoveryDialogs[0]);
     expect(prompt.buttons).toContain('I checked Redmine: recover paused timer');
