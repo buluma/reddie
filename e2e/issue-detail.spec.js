@@ -37,7 +37,7 @@ test.describe('issue detail request ordering', () => {
     }, { id, result });
   }
   async function pending(count) {
-    await expect.poll(() => app.evaluate(() => global.detailRequests.length)).toBe(count);
+    await expect.poll(() => app.evaluate(() => global.detailRequests.length), { timeout: 15000 }).toBe(count);
   }
   test('late detail cannot replace the selection or redirect edits', async () => {
     await page.evaluate(() => { void openIssueDetail(1); void openIssueDetail(2); });

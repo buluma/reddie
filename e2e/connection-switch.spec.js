@@ -4,7 +4,7 @@ const os = require('os');
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 
-test('connection switching validates first, guards timers, and scopes board data', async () => {
+test('connection switching validates first, guards timers, and scopes board data', async ({}, testInfo) => {
   let holdFirstIssueList = false;
   let releaseFirstIssueList;
   const server = http.createServer((req, res) => {
@@ -37,7 +37,7 @@ test('connection switching validates first, guards timers, and scopes board data
     await expect.poll(() => app.windows().some(w => w.url().includes('index.html')), { timeout: 15000 }).toBe(true);
     const page = app.windows().find(w => w.url().includes('index.html'));
     await expect(page.locator('#settings-modal')).toHaveClass(/show/);
-    await page.screenshot({ path: '/Users/shadowwalker/.no-mistakes/evidence/01M5H2YEZQCXP4AHSJ0YSEW2GM/connection-settings.png' });
+    await page.screenshot({ path: testInfo.outputPath('connection-settings.png') });
     // Dummy credentials only, in an isolated temporary profile. Avoid an OS
     // Keychain prompt from unsigned development Electron during this test.
     await app.evaluate(({ safeStorage }) => { safeStorage.isEncryptionAvailable = () => false; });
@@ -71,7 +71,7 @@ test('connection switching validates first, guards timers, and scopes board data
     expect(await page.evaluate(() => imageDataUrlCache.size)).toBe(0);
     releaseFirstIssueList();
     await expect.poll(async () => (await page.locator('.task-list').allTextContents()).some(text => text.includes('Old account ticket'))).toBe(false);
-    await page.screenshot({ path: '/Users/shadowwalker/.no-mistakes/evidence/01M5H2YEZQCXP4AHSJ0YSEW2GM/switched-account-board.png' });
+    await page.screenshot({ path: testInfo.outputPath('switched-account-board.png') });
     await page.locator('.settings-btn').click();
     await save('first');
     await expect(page.locator('#todo-list .task-card')).toHaveCount(1);
@@ -83,7 +83,7 @@ test('connection switching validates first, guards timers, and scopes board data
   }
 });
 
-test('environment credentials retain saved noncredential preferences at startup', async () => {
+test('environment credentials retain saved noncredential preferences at startup', async ({}, testInfo) => {
   const http = require('http');
   const fs = require('fs');
   const os = require('os');
@@ -118,7 +118,7 @@ test('environment credentials retain saved noncredential preferences at startup'
     expect(config.textFormat).toBe('textile');
     expect(config.columnOverrides).toEqual({ 1: 'todo' });
     expect(config.windowTransparency).toBe(true);
-    await page.screenshot({ path: '/Users/shadowwalker/.no-mistakes/evidence/01M5H2YEZQCXP4AHSJ0YSEW2GM/environment-preferences.png' });
+    await page.screenshot({ path: testInfo.outputPath('environment-preferences.png') });
   } finally {
     await app?.close();
     server.closeAllConnections();
