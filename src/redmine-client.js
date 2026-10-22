@@ -48,6 +48,14 @@ function requestOnce(baseUrl, apiKey, path, method = 'GET', body = null, { raw =
       },
       (res) => {
         const status = res.statusCode || 0;
+        // Errors after headers belong to IncomingMessage, not ClientRequest.
+        // Reject incomplete bodies so GET retries can run and writes report an
+        // uncertain outcome instead of leaving IPC promises pending forever.
+        res.on('error', reject);
+        res.on('aborted', () => reject(new Error('Redmine response was interrupted')));
+        res.on('close', () => {
+          if (!res.complete) reject(new Error('Redmine response closed before completion'));
+        });
 
         if (binary) {
           const chunks = [];
@@ -67,11 +75,14 @@ function requestOnce(baseUrl, apiKey, path, method = 'GET', body = null, { raw =
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => {
           let parsed = null;
-          if (data) {
+          if (data.trim()) {
             try {
               parsed = JSON.parse(data);
             } catch {
-              parsed = null;
+              if (status >= 200 && status < 300) {
+                reject(new Error('Redmine returned invalid JSON'));
+                return;
+              }
             }
           }
           if (status >= 200 && status < 300) {
@@ -107,8 +118,9 @@ const RETRY_BACKOFF_MS = 300;
 // Whether a failed request should be retried. GET is the only idempotent
 // method here, so writes are never retried - a blind PUT/POST retry could
 // double-post a comment or time entry. A missing statusCode means the request
-// never got an HTTP response (network error / timeout), which is exactly the
-// transient case worth retrying; a present statusCode is only transient for
+// never got a complete, valid HTTP response (network error / timeout /
+// interrupted body / malformed 2xx JSON), which is the transient case worth
+// retrying; a present statusCode is only transient for
 // 5xx (a 4xx like 422/404/403 is a client error that won't fix itself).
 function isRetriable(method, error) {
   if (method !== 'GET') return false;
