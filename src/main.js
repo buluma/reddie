@@ -502,8 +502,8 @@ app.whenReady().then(async () => {
       return response === 1 ? 'discard' : matches && response === 0 ? 'recover' : 'keep';
     },
   });
-  // Read ahead of the full config load below (which is gated behind the
-  // .env-api-key check) - windowTransparency has to be known before
+  // Read ahead of the full config load below - windowTransparency must be
+  // known before
   // createWindow() runs since `transparent` can't be set on an existing
   // window. Uses the narrow reader, not loadPersistedConfig(), so this
   // never touches the encrypted API key / Keychain on a plain launch.
@@ -527,7 +527,7 @@ app.whenReady().then(async () => {
 
   // .env wins if it supplied a key; otherwise fall back to the encrypted
   // config from a previous Settings save (see config-store.js).
-  const persisted = loadPersistedConfig();
+  const persisted = loadPersistedConfig({ skipCredentials: !!DEFAULT_REDMINE_API_KEY });
   config = { ...config, ...persisted };
   if (DEFAULT_REDMINE_API_KEY) {
     config.redmineApiKey = DEFAULT_REDMINE_API_KEY;
