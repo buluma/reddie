@@ -736,7 +736,7 @@ ipcMain.handle('add-timelog', async (event, { issueId, hours, activityId, commen
 });
 
 // SHA-24 time tracker. All five actions run the pure state machine in
-// timer.js and report the invalid-transition errors it throws straight back
+// timer controller and timer.js and report invalid-transition errors straight back
 // to the renderer (e.g. "a timer is already active for ticket #X") - the
 // renderer decides what to do about that (offer to cancel/complete the other
 // one), this layer just relays it, same {error} convention as every other

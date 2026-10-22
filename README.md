@@ -88,7 +88,7 @@ bun start        # run from source
 
 ```bash
 bun start              # run from source
-bun run test               # vitest (single suite: redmine-client.test.js)
+bun run test               # vitest
 bun run build          # electron-builder, output in dist/
 ```
 
