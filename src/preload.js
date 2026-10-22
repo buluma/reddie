@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('reddieAPI', {
   onOpenIssueFromTray: (callback) => {
     ipcRenderer.on('open-issue-detail-from-tray', (event, issueId) => callback(issueId));
   },
+  recoverTimer: () => ipcRenderer.invoke('timer-recover'),
   getTimerState: () => ipcRenderer.invoke('timer-get-state'),
   startTimer: (ticketId, subject) => ipcRenderer.invoke('timer-start', { ticketId, subject }),
   pauseTimer: () => ipcRenderer.invoke('timer-pause'),

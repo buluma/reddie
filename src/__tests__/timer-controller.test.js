@@ -25,18 +25,19 @@ describe('timer submission boundary', () => {
     expect(controller.getState().ticketId).toBe(99);
   });
 
-  it('preserves time after a failed write and allows an explicit retry', async () => {
-    const { controller, submit, reject, resolve } = setup();
+  it('preserves time after a failed write and blocks resubmission until discard', async () => {
+    const { controller, submit, reject } = setup();
     const before = controller.getState();
     const completion = controller.complete({ activityId: 1 });
     reject();
     await expect(completion).rejects.toThrow('offline');
     expect(controller.getState()).toEqual(before);
     expect(controller.isSubmitting()).toBe(false);
-    const retry = controller.complete({ activityId: 1 });
-    resolve();
-    await retry;
-    expect(submit).toHaveBeenCalledTimes(2);
+    await expect(controller.complete({ activityId: 1 })).rejects.toThrow(/Reconcile or discard/);
+    expect(() => controller.pause()).toThrow(/Reconcile or discard/);
+    expect(() => controller.start({ ticketId: 42 })).toThrow(/Reconcile or discard/);
+    expect(submit).toHaveBeenCalledTimes(1);
+    controller.cancel();
     expect(controller.getState().status).toBe('idle');
   });
 });
