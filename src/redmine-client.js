@@ -48,6 +48,14 @@ function requestOnce(baseUrl, apiKey, path, method = 'GET', body = null, { raw =
       },
       (res) => {
         const status = res.statusCode || 0;
+        // Errors after headers belong to IncomingMessage, not ClientRequest.
+        // Reject incomplete bodies so GET retries can run and writes report an
+        // uncertain outcome instead of leaving IPC promises pending forever.
+        res.on('error', reject);
+        res.on('aborted', () => reject(new Error('Redmine response was interrupted')));
+        res.on('close', () => {
+          if (!res.complete) reject(new Error('Redmine response closed before completion'));
+        });
 
         if (binary) {
           const chunks = [];
@@ -71,7 +79,10 @@ function requestOnce(baseUrl, apiKey, path, method = 'GET', body = null, { raw =
             try {
               parsed = JSON.parse(data);
             } catch {
-              parsed = null;
+              if (status >= 200 && status < 300) {
+                reject(new Error('Redmine returned invalid JSON'));
+                return;
+              }
             }
           }
           if (status >= 200 && status < 300) {
