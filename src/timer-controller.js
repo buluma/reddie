@@ -8,8 +8,9 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
   let state = timer.initialTimerState();
   let submitting = false;
   let connectionScope = '';
-  function save(next = state, scope = connectionScope) {
-    persist({ version: 1, state: next, connectionScope: scope, savedAt: now(), submissionPending: submitting });
+  let uncertainSubmission = false;
+  function save(next = state, scope = connectionScope, uncertain = uncertainSubmission) {
+    persist({ version: 1, state: next, connectionScope: scope, savedAt: now(), submissionPending: submitting || uncertain });
   }
   function assertAvailable() {
     if (submitting) throw new Error('Time entry submission is in progress');
@@ -18,8 +19,10 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
     assertAvailable();
     const next = action(state, ...args);
     const scope = next.status === 'idle' ? '' : (state.status === 'idle' ? getConnectionScope() : connectionScope);
-    save(next, scope);
+    const uncertain = next.status === 'idle' ? false : uncertainSubmission;
+    save(next, scope, uncertain);
     state = next;
+    uncertainSubmission = uncertain;
     connectionScope = scope;
     return state;
   }
@@ -33,8 +36,9 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
       if (snapshot.connectionScope !== getConnectionScope()) throw new Error('Saved timer belongs to another Redmine account');
       if (snapshot.submissionPending && !acknowledgePending) throw new Error('Check Redmine before recovering an uncertain submission');
       const recovered = pausedRecovery(snapshot);
-      save(recovered, snapshot.connectionScope);
+      save(recovered, snapshot.connectionScope, false);
       state = recovered;
+      uncertainSubmission = false;
       connectionScope = snapshot.connectionScope;
       return state;
     },
@@ -57,8 +61,10 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
       try {
         save();
         requestStarted = true;
+        uncertainSubmission = true;
         await submit(submission.ticketId, { ...entry, hours });
         submitted = true;
+        uncertainSubmission = false;
         state = completed;
         connectionScope = '';
         submitting = false;

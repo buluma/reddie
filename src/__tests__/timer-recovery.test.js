@@ -104,6 +104,25 @@ describe('durable timer recovery', () => {
     await expect(controller.complete()).rejects.toThrow();
     expect(s.submit).toHaveBeenCalledTimes(1);
   });
+  it('preserves rejected-submission uncertainty across checkpoints and pause/resume', async () => {
+    const s = setup();
+    const controller = createTimerController({ ...s.options, submit: async () => { throw new Error('Response lost'); } });
+    controller.start({ ticketId: 42, subject: 'Work' });
+    s.at(61000);
+    await expect(controller.complete()).rejects.toThrow('Response lost');
+    controller.checkpoint();
+    expect(s.store.load().submissionPending).toBe(true);
+    controller.pause();
+    expect(s.store.load().submissionPending).toBe(true);
+    controller.start({ ticketId: 42, subject: 'Work' });
+    controller.checkpoint();
+    const snapshot = s.store.load();
+    expect(snapshot.submissionPending).toBe(true);
+    const restarted = createTimerController(s.options);
+    expect(() => restarted.restore(snapshot)).toThrow(/Check Redmine/);
+    controller.cancel();
+    expect(s.store.load()).toBeNull();
+  });
   it('ignores corrupt persisted data without crashing startup', () => {
     const s = setup();
     fs.writeFileSync(s.file, '{');
