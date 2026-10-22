@@ -58,4 +58,8 @@ describe('HTTP response lifecycle', () => {
     const client = await serve((req, res) => { req.resume(); res.writeHead(204); res.end(); });
     await expect(client.addComment(42, 'Hello')).resolves.toEqual({});
   });
+  it('accepts a whitespace-only successful write response', async () => {
+    const client = await serve((req, res) => { req.resume(); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(' '); });
+    await expect(client.updateStatus(42, 3)).resolves.toEqual({});
+  });
 });

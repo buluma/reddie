@@ -75,7 +75,7 @@ function requestOnce(baseUrl, apiKey, path, method = 'GET', body = null, { raw =
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => {
           let parsed = null;
-          if (data) {
+          if (data.trim()) {
             try {
               parsed = JSON.parse(data);
             } catch {
