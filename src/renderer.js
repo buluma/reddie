@@ -1532,6 +1532,10 @@ const UI_ACTIONS = {
   'start-timer': () => startTimerHere(),
   'pause-timer': () => pauseTimerHere(),
   'reset-timer': () => resetTimerHere(),
+  'recover-timer': async () => {
+    const result = await window.reddieAPI.recoverTimer();
+    if (applyTimerResult(result) && !result.hadPending) showToast('No saved timer to recover');
+  },
   'cancel-timer': () => cancelTimerHere(),
   'discard-other-timer': () => discardOtherTimerAndStartHere(),
   'complete-timer': () => completeTimerHere(),
