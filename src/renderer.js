@@ -1321,12 +1321,18 @@ function notifyRemoteChanges(nextIssueColumns) {
 }
 
 let promptedForSettings = false;
+let boardGeneration = 0;
 
 async function loadFromAPI({ notifyChanges = false } = {}) {
+  const mode = boardMode;
+  const generation = ++boardGeneration;
+  const stateKey = getStateKey();
+  const isCurrent = () => generation === boardGeneration && mode === boardMode;
   try {
-    const response = boardMode === 'authored'
+    const response = mode === 'authored'
       ? await window.reddieAPI.fetchAuthoredIssues()
       : await window.reddieAPI.fetchIssues();
+    if (!isCurrent() || isDragging) return;
     if (response.notConfigured) {
       // Nothing to fetch until Settings has a URL + API key. Show whatever
       // local cards exist (clearing the first-launch "Loading…"
@@ -1373,7 +1379,7 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
     // wearing this one's chrome. While viewing the authored board, leave
     // the tray on its last assigned snapshot rather than zeroing it out -
     // an unrelated view toggle shouldn't clear the pending-work badge.
-    if (boardMode === 'assigned') {
+    if (mode === 'assigned') {
       const unfinished = issues.filter(i => getColumnFromStatus(i.status) !== 'done');
       updateTrayStatus(unfinished, apiState);
     }
@@ -1388,16 +1394,19 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
       mergedState[id] = [...apiState[id], ...localOnly];
     });
 
-    localStorage.setItem(getStateKey(), JSON.stringify(mergedState));
+    localStorage.setItem(stateKey, JSON.stringify(mergedState));
     renderState(mergedState);
   } catch (err) {
+    if (!isCurrent()) return;
     console.error('Failed to load from API:', err);
+    showToast(`Couldn't load issues: ${err.message || err}`, 'error');
   }
 }
 
 async function setBoardMode(mode) {
   if (mode === boardMode) return;
   boardMode = mode;
+  boardGeneration += 1;
   // The two modes track entirely different ticket sets - diffing one
   // against the other's leftover tracker would misreport every ticket in
   // the newly-active mode as either "moved" or "left the board".
