@@ -497,7 +497,7 @@ app.whenReady().then(async () => {
           : uncertain
             ? 'The app stopped while submitting this time entry. Check Redmine first: it may already have been logged. Recovery never submits automatically.'
             : 'Recover the saved elapsed time as paused. Time while the app was closed is not counted.',
-        buttons, defaultId: uncertain ? buttons.length - 1 : 0, cancelId: matches ? buttons.length - 1 : 0,
+        buttons, defaultId: matches && uncertain ? 2 : 0, cancelId: matches ? buttons.length - 1 : 0,
       });
       return response === 1 ? 'discard' : matches && response === 0 ? 'recover' : 'keep';
     },
