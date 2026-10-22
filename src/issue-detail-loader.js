@@ -28,7 +28,7 @@
             : [];
           if (!isCurrent(request)) return { stale: true };
           const [members = {}, trackers = {}, categories = {}, versions = {}] = metadata;
-          onLoad({ ...result, members: members.items || [], trackers: trackers.items || [], categories: categories.items || [], versions: versions.items || [] });
+          onLoad({ ...result, members: members?.items || [], trackers: trackers?.items || [], categories: categories?.items || [], versions: versions?.items || [] });
           return { ok: true };
         } catch (error) {
           if (!isCurrent(request)) return { stale: true };
