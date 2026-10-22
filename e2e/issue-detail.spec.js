@@ -157,11 +157,9 @@ test.describe('issue detail request ordering', () => {
     await pending(1);
     await resolve(10, { issue: { id: 10, subject: 'Described issue', description: 'Old text' } });
     await expect(page.locator('#detail-subject')).toHaveText('Described issue');
-    await page.evaluate(() => {
-      editDescription();
-      document.getElementById('description-input').value = 'New text';
-      void saveDescriptionEdit();
-    });
+    await page.locator('#description-display').click();
+    await page.locator('#description-input').fill('New text');
+    await page.locator('#description-input').press('Tab');
     await expect.poll(() => app.evaluate(() => !!global.resolveIssueWrite)).toBe(true);
     await page.evaluate(() => { void openIssueDetail(11); });
     await pending(1);
