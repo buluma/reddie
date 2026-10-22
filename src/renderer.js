@@ -479,6 +479,10 @@ let detailGeneration = 0;
 function isCurrentDetail(issueId, generation) {
   return issueId === currentDetailIssueId && generation === detailGeneration;
 }
+
+function isShowingIssue(issueId) {
+  return issueId === currentDetailIssueId;
+}
 // Cached alongside the open issue so comment/timelog refreshes don't need
 // to re-fetch the project's member list just to re-render the same
 // assignee dropdown.
@@ -551,6 +555,7 @@ async function changeAssignee(value) {
       throw new Error(result.error);
     }
     showToast('Assignee updated', 'success');
+    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
     await loadFromAPI();
   } catch (err) {
     showToast(`Couldn't update assignee: ${err.message || err}`, 'error');
@@ -575,6 +580,7 @@ async function changePriority(value) {
       throw new Error(result.error);
     }
     showToast('Priority updated', 'success');
+    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't update priority: ${err.message || err}`, 'error');
     if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
@@ -596,6 +602,7 @@ async function changeIssueField(field, value) {
       throw new Error(result.error);
     }
     showToast('Issue updated', 'success');
+    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't update issue: ${err.message || err}`, 'error');
     if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
@@ -628,9 +635,10 @@ async function saveDescriptionEdit() {
       throw new Error(result.error);
     }
     showToast('Description updated', 'success');
-    if (!isCurrentDetail(issueId, generation)) return;
-    currentDetailDescription = description;
-    await openIssueDetail(issueId);
+    if (isShowingIssue(issueId)) {
+      currentDetailDescription = description;
+      await openIssueDetail(issueId);
+    }
   } catch (err) {
     showToast(`Couldn't update description: ${err.message || err}`, 'error');
     if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
@@ -639,7 +647,6 @@ async function saveDescriptionEdit() {
 
 async function uploadAttachment() {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
   if (!issueId) return;
   const btn = document.getElementById('attachment-upload-btn');
   btn.disabled = true;
@@ -653,10 +660,7 @@ async function uploadAttachment() {
       throw new Error(result.error);
     }
     showToast(`${result.filename} attached`, 'success');
-    const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
-    if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
-      renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
-    }
+    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't attach file: ${err.message || err}`, 'error');
   } finally {
@@ -774,7 +778,6 @@ async function discardOtherTimerAndStartHere() {
 
 async function completeTimerHere() {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
   const activitySelect = document.getElementById('timer-complete-activity');
   const activityId = activitySelect ? parseInt(activitySelect.value, 10) : null;
   if (!activityId) {
@@ -785,10 +788,7 @@ async function completeTimerHere() {
   if (!applyTimerResult(result)) return;
   showToast(`Logged ${result.hours}h`, 'success');
   if (!issueId) return;
-  const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
-  if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
-    renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
-  }
+  if (isShowingIssue(issueId)) await openIssueDetail(issueId);
 }
 
 async function saveSubjectEdit() {
@@ -809,7 +809,10 @@ async function saveSubjectEdit() {
       throw new Error(result.error);
     }
     showToast('Subject updated', 'success');
-    if (isCurrentDetail(issueId, generation)) currentDetailSubject = subject;
+    if (isShowingIssue(issueId)) {
+      currentDetailSubject = subject;
+      await openIssueDetail(issueId);
+    }
     await loadFromAPI();
   } catch (err) {
     showToast(`Couldn't update subject: ${err.message || err}`, 'error');
@@ -834,13 +837,9 @@ async function postComment() {
       return;
     }
     showToast('Comment posted', 'success');
-    if (!isCurrentDetail(issueId, generation)) return;
-    input.value = '';
+    if (isCurrentDetail(issueId, generation)) input.value = '';
     // Re-fetch so the new comment shows up in the activity list
-    const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
-    if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
-      renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
-    }
+    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't post comment: ${err.message || err}`, 'error');
   } finally {
@@ -851,7 +850,6 @@ async function postComment() {
 
 async function submitTimelog() {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
   if (!issueId) return;
   const hoursInput = document.getElementById('timelog-hours');
   const activitySelect = document.getElementById('timelog-activity');
@@ -882,10 +880,7 @@ async function submitTimelog() {
       return;
     }
     showToast('Time logged', 'success');
-    const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
-    if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
-      renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
-    }
+    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't log time: ${err.message || err}`, 'error');
   } finally {

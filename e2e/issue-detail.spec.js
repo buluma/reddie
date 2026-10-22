@@ -143,7 +143,7 @@ test.describe('issue detail request ordering', () => {
     expect(await app.evaluate(() => global.lastSubjectWrite)).toEqual({ issueId: 8, subject: 'Renamed subject' });
     await expect(page.locator('#detail-subject')).toHaveText('Other subject');
   });
-  test('an older description save still reports success without reloading the new view', async () => {
+  test('an older description save refreshes a reopened issue without replacing another view', async () => {
     await app.evaluate(({ ipcMain }) => {
       ipcMain.removeHandler('update-issue');
       ipcMain.handle('update-issue', (event, data) => new Promise(resolve => {
@@ -165,11 +165,17 @@ test.describe('issue detail request ordering', () => {
     await pending(1);
     await resolve(11, { issue: { id: 11, subject: 'Undescribed issue' } });
     await expect(page.locator('#detail-subject')).toHaveText('Undescribed issue');
+    await page.evaluate(() => { void openIssueDetail(10); });
+    await pending(1);
+    await resolve(10, { issue: { id: 10, subject: 'Described issue', description: 'Old text' } });
+    await expect(page.locator('#detail-subject')).toHaveText('Described issue');
     await app.evaluate(() => global.resolveIssueWrite({ ok: true }));
     await expect(page.locator('#toast-container .toast', { hasText: 'Description updated' })).toHaveCount(1);
-    await pending(0);
+    await pending(1);
+    await resolve(10, { issue: { id: 10, subject: 'Described issue', description: 'New text' } });
     expect(await app.evaluate(() => global.lastIssueWrite)).toEqual({ issueId: 10, fields: { description: 'New text' } });
-    await expect(page.locator('#detail-subject')).toHaveText('Undescribed issue');
+    await expect(page.locator('#detail-subject')).toHaveText('Described issue');
+    await expect(page.locator('#description-display')).toContainText('New text');
   });
   test('discarding another timer starts it for the issue where it was clicked', async () => {
     await app.evaluate(({ ipcMain }) => {
