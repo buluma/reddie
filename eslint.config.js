@@ -13,7 +13,7 @@ module.exports = [
   js.configs.recommended,
   {
     // Electron main process and its Node-side helpers (CommonJS).
-    files: ['src/main.js', 'src/preload.js', 'src/tray-preload.js', 'src/config-store.js', 'src/timer-controller.js', 'src/connection-manager.js', 'src/atomic-json.js', 'src/timer-store.js', 'src/timer-recovery.js', 'src/redmine-client.js', 'eslint.config.js'],
+    files: ['src/main.js', 'src/preload.js', 'src/tray-preload.js', 'src/config-store.js', 'src/timer-controller.js', 'src/connection-manager.js', 'src/atomic-json.js', 'src/timer-store.js', 'src/timer-recovery.js', 'src/timer-ipc.js', 'src/redmine-client.js', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',
@@ -31,7 +31,7 @@ module.exports = [
     // shared window scope, so a symbol defined in urgency.js (reddieUrgency)
     // or exposed on window in one file is legitimately referenced from
     // another - declare those cross-file globals so no-undef doesn't trip.
-    files: ['src/renderer.js', 'src/tray-popover.js', 'src/urgency.js', 'src/inline-images.js', 'src/text-format.js', 'src/redmine-macros.js', 'src/timer.js', 'src/issue-detail-helpers.js'],
+    files: ['src/renderer.js', 'src/board-loader.js', 'src/issue-detail-loader.js', 'src/tray-popover.js', 'src/urgency.js', 'src/inline-images.js', 'src/text-format.js', 'src/redmine-macros.js', 'src/timer.js', 'src/issue-detail-helpers.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',
