@@ -5,7 +5,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { RedmineClient, buildColumnMapping, sameInstanceImagePath } = require('./redmine-client');
 const { loadPersistedConfig, persistConfig, loadWindowTransparencySetting } = require('./config-store');
 const { autoUpdater } = require('electron-updater');
-const timer = require('./timer');
+const { createTimerController } = require('./timer-controller');
 
 // Auto-download/install is off on purpose: macOS's Squirrel.Mac (the
 // updater apply step electron-updater uses under the hood) requires the
@@ -158,13 +158,16 @@ const TRAY_COLORS = { none: '#808080', low: '#30d158', medium: '#ff9f0a', high: 
 // does - it must survive the window being hidden-to-tray and a renderer
 // reload. In-memory only for now: a timer does not survive a full app quit,
 // same scope as the rest of the tray state.
-let timerState = timer.initialTimerState();
+const timerController = createTimerController({
+  submit: (ticketId, entry) => client.addTimeEntry(ticketId, entry),
+});
 
 // Pushes the current timer to both the main window (for the issue detail
 // widget) and the tray popover (piggybacked onto latestTrayData, the same
 // object update-tray-status already maintains) - called after every timer
 // transition so all surfaces stay in sync without polling.
 function broadcastTimerState() {
+  const timerState = timerController.getState();
   latestTrayData = { ...latestTrayData, activeTimer: timerState.status === 'idle' ? null : timerState };
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('timer-state-changed', timerState);
@@ -733,66 +736,26 @@ ipcMain.handle('add-timelog', async (event, { issueId, hours, activityId, commen
 });
 
 // SHA-24 time tracker. All five actions run the pure state machine in
-// timer.js and report the invalid-transition errors it throws straight back
+// timer controller and timer.js and report invalid-transition errors straight back
 // to the renderer (e.g. "a timer is already active for ticket #X") - the
 // renderer decides what to do about that (offer to cancel/complete the other
 // one), this layer just relays it, same {error} convention as every other
 // handler here.
-ipcMain.handle('timer-get-state', async () => timerState);
+ipcMain.handle('timer-get-state', async () => timerController.getState());
 
-ipcMain.handle('timer-start', async (event, { ticketId, subject }) => {
-  try {
-    timerState = timer.start(timerState, { ticketId, subject }, Date.now());
-    broadcastTimerState();
-    return { ok: true, state: timerState };
-  } catch (err) {
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('timer-pause', async () => {
-  try {
-    timerState = timer.pause(timerState, Date.now());
-    broadcastTimerState();
-    return { ok: true, state: timerState };
-  } catch (err) {
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('timer-reset', async () => {
-  try {
-    timerState = timer.reset(timerState);
-    broadcastTimerState();
-    return { ok: true, state: timerState };
-  } catch (err) {
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('timer-cancel', async () => {
-  // cancel() never throws (a no-op when already idle) - nothing to catch.
-  timerState = timer.cancel(timerState);
-  broadcastTimerState();
-  return { ok: true, state: timerState };
-});
-
-ipcMain.handle('timer-complete', async (event, { activityId, comment } = {}) => {
-  try {
-    const { state, submission } = timer.complete(timerState, Date.now());
-    const hours = timer.msToHours(submission.elapsedMs);
-    // Only commit the state transition to idle AFTER the Redmine write
-    // succeeds - if addTimeEntry fails (network, validation), timerState is
-    // left exactly as it was so the elapsed time isn't silently lost and the
-    // user can retry.
-    await client.addTimeEntry(submission.ticketId, { hours, activityId, comment });
-    timerState = state;
-    broadcastTimerState();
-    return { ok: true, state: timerState, hours };
-  } catch (err) {
-    return { error: err.message };
-  }
-});
+for (const action of ['start', 'pause', 'reset', 'cancel', 'complete']) {
+  ipcMain.handle(`timer-${action}`, async (event, payload = {}) => {
+    try {
+      const result = action === 'complete'
+        ? await timerController.complete(payload)
+        : { state: timerController[action](payload) };
+      broadcastTimerState();
+      return { ok: true, ...result };
+    } catch (err) {
+      return { error: err.message };
+    }
+  });
+}
 
 ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) {
