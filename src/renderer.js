@@ -1332,7 +1332,7 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
     const response = mode === 'authored'
       ? await window.reddieAPI.fetchAuthoredIssues()
       : await window.reddieAPI.fetchIssues();
-    if (!isCurrent() || isDragging) return;
+    if (!isCurrent()) return;
     if (response.notConfigured) {
       // Nothing to fetch until Settings has a URL + API key. Show whatever
       // local cards exist (clearing the first-launch "Loading…"
@@ -1399,14 +1399,12 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
   } catch (err) {
     if (!isCurrent()) return;
     console.error('Failed to load from API:', err);
-    showToast(`Couldn't load issues: ${err.message || err}`, 'error');
   }
 }
 
 async function setBoardMode(mode) {
   if (mode === boardMode) return;
   boardMode = mode;
-  boardGeneration += 1;
   // The two modes track entirely different ticket sets - diffing one
   // against the other's leftover tracker would misreport every ticket in
   // the newly-active mode as either "moved" or "left the board".
