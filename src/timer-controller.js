@@ -53,8 +53,10 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
       const hours = timer.msToHours(submission.elapsedMs);
       submitting = true;
       let submitted = false;
+      let requestStarted = false;
       try {
         save();
+        requestStarted = true;
         await submit(submission.ticketId, { ...entry, hours });
         submitted = true;
         state = completed;
@@ -66,7 +68,7 @@ function createTimerController({ submit, now = Date.now, persist = () => {}, get
         return { state, hours };
       } finally {
         submitting = false;
-        if (!submitted) save();
+        if (!submitted && !requestStarted) save();
       }
     },
   };

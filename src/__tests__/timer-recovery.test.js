@@ -71,6 +71,19 @@ describe('durable timer recovery', () => {
     finish(); await completion;
     expect(s.store.load()).toBeNull();
   });
+  it('preserves reconciliation state when a submission rejects', async () => {
+    const s = setup();
+    const uncertainController = createTimerController({ ...s.options, submit: vi.fn(async () => { throw new Error('connection lost'); }) });
+    uncertainController.start({ ticketId: 42, subject: 'Work' });
+    s.at(61000);
+    await expect(uncertainController.complete()).rejects.toThrow('connection lost');
+    expect(s.store.load().submissionPending).toBe(true);
+    const restarted = createTimerController(s.options);
+    const recovery = createTimerRecovery({ store: s.store, controller: restarted, getScope: s.options.getConnectionScope, choose: async ({ snapshot }) => snapshot.submissionPending ? 'keep' : 'recover' });
+    await recovery.offer();
+    expect(recovery.hasPending()).toBe(true);
+    expect(restarted.getState().status).toBe('idle');
+  });
   it('does not change memory or submit a write if the initial durable save fails', async () => {
     const controller = createTimerController({ submit: vi.fn(), persist: () => { throw new Error('disk full'); } });
     expect(() => controller.start({ ticketId: 42, subject: 'Work' })).toThrow('disk full');
