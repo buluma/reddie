@@ -474,6 +474,11 @@ function renderIssueDetail(issue, timeEntries, members) {
 }
 
 let currentDetailIssueId = null;
+let detailGeneration = 0;
+
+function isCurrentDetail(issueId, generation) {
+  return issueId === currentDetailIssueId && generation === detailGeneration;
+}
 // Cached alongside the open issue so comment/timelog refreshes don't need
 // to re-fetch the project's member list just to re-render the same
 // assignee dropdown.
@@ -501,6 +506,7 @@ let currentTimerState = reddieTimer.initialTimerState();
 let timerTickInterval = null;
 
 async function openIssueDetail(issueId) {
+  const generation = ++detailGeneration;
   currentDetailIssueId = issueId;
   document.getElementById('issue-detail-modal').classList.add('show');
   document.getElementById('detail-subject').textContent = 'Loading…';
@@ -508,6 +514,7 @@ async function openIssueDetail(issueId) {
   document.getElementById('comment-input').value = '';
 
   const result = await window.reddieAPI.fetchIssueDetail(issueId);
+  if (!isCurrentDetail(issueId, generation)) return;
   if (!result || result.error || !result.issue) {
     document.getElementById('detail-subject').textContent = 'Error';
     document.getElementById('detail-body').innerHTML = `<div class="detail-empty">${escapeHtml((result && result.error) || 'Failed to load issue.')}</div>`;
@@ -523,6 +530,7 @@ async function openIssueDetail(issueId) {
         window.reddieAPI.fetchProjectVersions(projectId),
       ])
     : [{ items: [] }, { items: [] }, { items: [] }, { items: [] }];
+  if (!isCurrentDetail(issueId, generation)) return;
   currentDetailMembers = (membersResult && membersResult.items) || [];
   currentDetailTrackers = (trackersResult && trackersResult.items) || [];
   currentDetailCategories = (categoriesResult && categoriesResult.items) || [];
@@ -531,12 +539,14 @@ async function openIssueDetail(issueId) {
 }
 
 async function changeAssignee(value) {
-  if (!currentDetailIssueId) return;
+  const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
+  if (!issueId) return;
   const select = document.getElementById('assignee-select');
   const userId = value ? Number(value) : null;
   select.disabled = true;
   try {
-    const result = await window.reddieAPI.updateAssignee(currentDetailIssueId, userId);
+    const result = await window.reddieAPI.updateAssignee(issueId, userId);
     if (result && result.error) {
       throw new Error(result.error);
     }
@@ -546,26 +556,28 @@ async function changeAssignee(value) {
     showToast(`Couldn't update assignee: ${err.message || err}`, 'error');
     // Re-load the detail view so the dropdown reflects the real current
     // assignee rather than whatever the failed selection left it showing.
-    await openIssueDetail(currentDetailIssueId);
+    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
   } finally {
     if (select) select.disabled = false;
   }
 }
 
 async function changePriority(value) {
-  if (!currentDetailIssueId) return;
+  const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
+  if (!issueId) return;
   const select = document.getElementById('priority-select');
   const priorityId = Number(value);
   select.disabled = true;
   try {
-    const result = await window.reddieAPI.updatePriority(currentDetailIssueId, priorityId);
+    const result = await window.reddieAPI.updatePriority(issueId, priorityId);
     if (result && result.error) {
       throw new Error(result.error);
     }
     showToast('Priority updated', 'success');
   } catch (err) {
     showToast(`Couldn't update priority: ${err.message || err}`, 'error');
-    await openIssueDetail(currentDetailIssueId);
+    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
   } finally {
     if (select) select.disabled = false;
   }
@@ -575,16 +587,18 @@ async function changePriority(value) {
 // single-field PUT via the generic updateIssue endpoint, same pattern as
 // changePriority/changeAssignee above.
 async function changeIssueField(field, value) {
-  if (!currentDetailIssueId) return;
+  const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
+  if (!issueId) return;
   try {
-    const result = await window.reddieAPI.updateIssue(currentDetailIssueId, { [field]: value });
+    const result = await window.reddieAPI.updateIssue(issueId, { [field]: value });
     if (result && result.error) {
       throw new Error(result.error);
     }
     showToast('Issue updated', 'success');
   } catch (err) {
     showToast(`Couldn't update issue: ${err.message || err}`, 'error');
-    await openIssueDetail(currentDetailIssueId);
+    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
   }
 }
 
@@ -599,7 +613,9 @@ function editDescription() {
 }
 
 async function saveDescriptionEdit() {
-  if (!currentDetailIssueId) return;
+  const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
+  if (!issueId) return;
   const display = document.getElementById('description-display');
   const input = document.getElementById('description-input');
   const description = input.value.trim();
@@ -607,23 +623,25 @@ async function saveDescriptionEdit() {
   display.style.display = 'block';
   if (description === currentDetailDescription) return;
   try {
-    const result = await window.reddieAPI.updateIssue(currentDetailIssueId, { description });
+    const result = await window.reddieAPI.updateIssue(issueId, { description });
     if (result && result.error) {
       throw new Error(result.error);
     }
+    if (!isCurrentDetail(issueId, generation)) return;
     currentDetailDescription = description;
     showToast('Description updated', 'success');
-    await openIssueDetail(currentDetailIssueId);
+    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't update description: ${err.message || err}`, 'error');
-    await openIssueDetail(currentDetailIssueId);
+    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
   }
 }
 
 async function uploadAttachment() {
-  if (!currentDetailIssueId) return;
-  const btn = document.getElementById('attachment-upload-btn');
   const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
+  if (!issueId) return;
+  const btn = document.getElementById('attachment-upload-btn');
   btn.disabled = true;
   btn.textContent = 'Uploading…';
   try {
@@ -636,7 +654,7 @@ async function uploadAttachment() {
     }
     showToast(`${result.filename} attached`, 'success');
     const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
-    if (refreshed && !refreshed.error && refreshed.issue) {
+    if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
       renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
     }
   } catch (err) {
@@ -650,6 +668,7 @@ async function uploadAttachment() {
 }
 
 function closeIssueDetail() {
+  detailGeneration += 1;
   document.getElementById('issue-detail-modal').classList.remove('show');
   currentDetailIssueId = null;
   currentDetailMembers = [];
@@ -752,6 +771,8 @@ async function discardOtherTimerAndStartHere() {
 }
 
 async function completeTimerHere() {
+  const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
   const activitySelect = document.getElementById('timer-complete-activity');
   const activityId = activitySelect ? parseInt(activitySelect.value, 10) : null;
   if (!activityId) {
@@ -761,58 +782,62 @@ async function completeTimerHere() {
   const result = await window.reddieAPI.completeTimer(activityId);
   if (!applyTimerResult(result)) return;
   showToast(`Logged ${result.hours}h`, 'success');
-  const issueId = currentDetailIssueId;
   if (!issueId) return;
   const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
-  if (refreshed && !refreshed.error && refreshed.issue) {
+  if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
     renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
   }
 }
 
 async function saveSubjectEdit() {
-  if (!currentDetailIssueId) return;
+  const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
+  if (!issueId) return;
   const el = document.getElementById('detail-subject');
   const subject = el.textContent.trim();
   if (subject === currentDetailSubject) return;
   if (!subject) {
     showToast('Subject cannot be empty', 'error');
-    el.textContent = currentDetailSubject;
+    if (isCurrentDetail(issueId, generation)) el.textContent = currentDetailSubject;
     return;
   }
   try {
-    const result = await window.reddieAPI.updateSubject(currentDetailIssueId, subject);
+    const result = await window.reddieAPI.updateSubject(issueId, subject);
     if (result && result.error) {
       throw new Error(result.error);
     }
+    if (!isCurrentDetail(issueId, generation)) return;
     currentDetailSubject = subject;
     showToast('Subject updated', 'success');
     await loadFromAPI();
   } catch (err) {
     showToast(`Couldn't update subject: ${err.message || err}`, 'error');
-    el.textContent = currentDetailSubject;
+    if (isCurrentDetail(issueId, generation)) el.textContent = currentDetailSubject;
   }
 }
 
 async function postComment() {
+  const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
   const input = document.getElementById('comment-input');
   const btn = document.getElementById('comment-submit-btn');
   const comment = input.value.trim();
-  if (!comment || !currentDetailIssueId) return;
+  if (!comment || !issueId) return;
 
   btn.disabled = true;
   btn.textContent = 'Posting…';
   try {
-    const result = await window.reddieAPI.addComment(currentDetailIssueId, comment);
+    const result = await window.reddieAPI.addComment(issueId, comment);
     if (result && result.error) {
       showToast(`Couldn't post comment: ${result.error}`, 'error');
       return;
     }
+    if (!isCurrentDetail(issueId, generation)) return;
     input.value = '';
     showToast('Comment posted', 'success');
     // Re-fetch so the new comment shows up in the activity list
-    const issueId = currentDetailIssueId;
     const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
-    if (refreshed && !refreshed.error && refreshed.issue) {
+    if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
       renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
     }
   } catch (err) {
@@ -824,7 +849,9 @@ async function postComment() {
 }
 
 async function submitTimelog() {
-  if (!currentDetailIssueId) return;
+  const issueId = currentDetailIssueId;
+  const generation = detailGeneration;
+  if (!issueId) return;
   const hoursInput = document.getElementById('timelog-hours');
   const activitySelect = document.getElementById('timelog-activity');
   const commentInput = document.getElementById('timelog-comment');
@@ -844,7 +871,7 @@ async function submitTimelog() {
   btn.disabled = true;
   btn.textContent = 'Logging…';
   try {
-    const result = await window.reddieAPI.addTimelog(currentDetailIssueId, {
+    const result = await window.reddieAPI.addTimelog(issueId, {
       hours,
       activityId,
       comment: commentInput.value.trim(),
@@ -854,9 +881,8 @@ async function submitTimelog() {
       return;
     }
     showToast('Time logged', 'success');
-    const issueId = currentDetailIssueId;
     const refreshed = await window.reddieAPI.fetchIssueDetail(issueId);
-    if (refreshed && !refreshed.error && refreshed.issue) {
+    if (isCurrentDetail(issueId, generation) && refreshed && !refreshed.error && refreshed.issue) {
       renderIssueDetail(refreshed.issue, refreshed.timeEntries, currentDetailMembers);
     }
   } catch (err) {
