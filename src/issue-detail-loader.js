@@ -1,11 +1,11 @@
 (function (global) {
   'use strict';
 
-  function createIssueDetailLoader({ api, onStart, onLoad, onError }) {
+  function createIssueDetailLoader({ api, onStart, onLoad, onError, getConnection = () => undefined }) {
     let generation = 0;
     let issueId = null;
-    const capture = () => ({ issueId, generation });
-    const isCurrent = (request) => request.generation === generation && request.issueId === issueId;
+    const capture = () => ({ issueId, generation, connection: getConnection() });
+    const isCurrent = (request) => request.generation === generation && request.issueId === issueId && request.connection === getConnection();
     return {
       capture,
       isCurrent,

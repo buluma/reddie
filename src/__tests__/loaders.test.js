@@ -74,6 +74,23 @@ describe('issue detail loader', () => {
     expect(loader.isCurrent(captured)).toBe(false);
     expect(onError).not.toHaveBeenCalled();
   });
+  it('discards a pending issue when its connection changes without navigation', async () => {
+    let connection = 1;
+    const response = deferred();
+    const onLoad = vi.fn(), onError = vi.fn();
+    const loader = createIssueDetailLoader({
+      api: { fetchIssueDetail: () => response.promise }, getConnection: () => connection,
+      onStart: vi.fn(), onLoad, onError,
+    });
+    const loading = loader.load(42);
+    const mutationContext = loader.capture();
+    connection = 2;
+    response.resolve({ issue: { id: 42, subject: 'Old account' } });
+    await expect(loading).resolves.toEqual({ stale: true });
+    expect(loader.isCurrent(mutationContext)).toBe(false);
+    expect(onLoad).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
   it('reports current load failures without throwing into the UI event handler', async () => {
     const onError = vi.fn();
     const loader = createIssueDetailLoader({ api: { fetchIssueDetail: async () => ({ error: 'Denied' }) }, onStart: vi.fn(), onLoad: vi.fn(), onError });

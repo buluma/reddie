@@ -500,8 +500,8 @@ function renderIssueDetail(issue, timeEntries, members) {
 }
 
 let currentDetailIssueId = null;
-function isShowingIssue(issueId) {
-  return issueId === currentDetailIssueId;
+function isShowingIssue(issueId, connection) {
+  return issueId === currentDetailIssueId && connection === connectionGeneration;
 }
 // Cached alongside the open issue so comment/timelog refreshes don't need
 // to re-fetch the project's member list just to re-render the same
@@ -555,13 +555,10 @@ function openIssueDetail(issueId) {
   return detailLoader.load(issueId);
 }
 
-function isCurrentDetail(issueId, generation) {
-  return detailLoader.isCurrent({ ...detailLoader.capture(), issueId, generation });
-}
 
 async function changeAssignee(value) {
   const issueId = currentDetailIssueId;
-  const generation = detailLoader.capture().generation;
+  const request = detailLoader.capture();
   if (!issueId) return;
   const select = document.getElementById('assignee-select');
   const userId = value ? Number(value) : null;
@@ -572,13 +569,13 @@ async function changeAssignee(value) {
       throw new Error(result.error);
     }
     showToast('Assignee updated', 'success');
-    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
+    if (isShowingIssue(issueId, request.connection)) await openIssueDetail(issueId);
     await loadFromAPI();
   } catch (err) {
     showToast(`Couldn't update assignee: ${err.message || err}`, 'error');
     // Re-load the detail view so the dropdown reflects the real current
     // assignee rather than whatever the failed selection left it showing.
-    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
+    if (detailLoader.isCurrent(request)) await openIssueDetail(issueId);
   } finally {
     if (select) select.disabled = false;
   }
@@ -586,7 +583,7 @@ async function changeAssignee(value) {
 
 async function changePriority(value) {
   const issueId = currentDetailIssueId;
-  const generation = detailLoader.capture().generation;
+  const request = detailLoader.capture();
   if (!issueId) return;
   const select = document.getElementById('priority-select');
   const priorityId = Number(value);
@@ -597,10 +594,10 @@ async function changePriority(value) {
       throw new Error(result.error);
     }
     showToast('Priority updated', 'success');
-    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
+    if (isShowingIssue(issueId, request.connection)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't update priority: ${err.message || err}`, 'error');
-    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
+    if (detailLoader.isCurrent(request)) await openIssueDetail(issueId);
   } finally {
     if (select) select.disabled = false;
   }
@@ -611,7 +608,7 @@ async function changePriority(value) {
 // changePriority/changeAssignee above.
 async function changeIssueField(field, value) {
   const issueId = currentDetailIssueId;
-  const generation = detailLoader.capture().generation;
+  const request = detailLoader.capture();
   if (!issueId) return;
   try {
     const result = await window.reddieAPI.updateIssue(issueId, { [field]: value });
@@ -619,10 +616,10 @@ async function changeIssueField(field, value) {
       throw new Error(result.error);
     }
     showToast('Issue updated', 'success');
-    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
+    if (isShowingIssue(issueId, request.connection)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't update issue: ${err.message || err}`, 'error');
-    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
+    if (detailLoader.isCurrent(request)) await openIssueDetail(issueId);
   }
 }
 
@@ -638,7 +635,7 @@ function editDescription() {
 
 async function saveDescriptionEdit() {
   const issueId = currentDetailIssueId;
-  const generation = detailLoader.capture().generation;
+  const request = detailLoader.capture();
   if (!issueId) return;
   const display = document.getElementById('description-display');
   const input = document.getElementById('description-input');
@@ -652,18 +649,19 @@ async function saveDescriptionEdit() {
       throw new Error(result.error);
     }
     showToast('Description updated', 'success');
-    if (isShowingIssue(issueId)) {
+    if (isShowingIssue(issueId, request.connection)) {
       currentDetailDescription = description;
       await openIssueDetail(issueId);
     }
   } catch (err) {
     showToast(`Couldn't update description: ${err.message || err}`, 'error');
-    if (isCurrentDetail(issueId, generation)) await openIssueDetail(issueId);
+    if (detailLoader.isCurrent(request)) await openIssueDetail(issueId);
   }
 }
 
 async function uploadAttachment() {
   const issueId = currentDetailIssueId;
+  const request = detailLoader.capture();
   if (!issueId) return;
   const btn = document.getElementById('attachment-upload-btn');
   btn.disabled = true;
@@ -677,7 +675,7 @@ async function uploadAttachment() {
       throw new Error(result.error);
     }
     showToast(`${result.filename} attached`, 'success');
-    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
+    if (isShowingIssue(issueId, request.connection)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't attach file: ${err.message || err}`, 'error');
   } finally {
@@ -795,6 +793,7 @@ async function discardOtherTimerAndStartHere() {
 
 async function completeTimerHere() {
   const issueId = currentDetailIssueId;
+  const request = detailLoader.capture();
   const activitySelect = document.getElementById('timer-complete-activity');
   const activityId = activitySelect ? parseInt(activitySelect.value, 10) : null;
   if (!activityId) {
@@ -805,12 +804,12 @@ async function completeTimerHere() {
   if (!applyTimerResult(result)) return;
   showToast(`Logged ${result.hours}h`, 'success');
   if (!issueId) return;
-  if (isShowingIssue(issueId)) await openIssueDetail(issueId);
+  if (isShowingIssue(issueId, request.connection)) await openIssueDetail(issueId);
 }
 
 async function saveSubjectEdit() {
   const issueId = currentDetailIssueId;
-  const generation = detailLoader.capture().generation;
+  const request = detailLoader.capture();
   if (!issueId) return;
   const el = document.getElementById('detail-subject');
   const subject = el.textContent.trim();
@@ -826,20 +825,20 @@ async function saveSubjectEdit() {
       throw new Error(result.error);
     }
     showToast('Subject updated', 'success');
-    if (isShowingIssue(issueId)) {
+    if (isShowingIssue(issueId, request.connection)) {
       currentDetailSubject = subject;
       await openIssueDetail(issueId);
     }
     await loadFromAPI();
   } catch (err) {
     showToast(`Couldn't update subject: ${err.message || err}`, 'error');
-    if (isCurrentDetail(issueId, generation)) el.textContent = currentDetailSubject;
+    if (detailLoader.isCurrent(request)) el.textContent = currentDetailSubject;
   }
 }
 
 async function postComment() {
   const issueId = currentDetailIssueId;
-  const generation = detailLoader.capture().generation;
+  const request = detailLoader.capture();
   const input = document.getElementById('comment-input');
   const btn = document.getElementById('comment-submit-btn');
   const comment = input.value.trim();
@@ -854,9 +853,9 @@ async function postComment() {
       return;
     }
     showToast('Comment posted', 'success');
-    if (isCurrentDetail(issueId, generation)) input.value = '';
+    if (detailLoader.isCurrent(request)) input.value = '';
     // Re-fetch so the new comment shows up in the activity list
-    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
+    if (isShowingIssue(issueId, request.connection)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't post comment: ${err.message || err}`, 'error');
   } finally {
@@ -867,6 +866,7 @@ async function postComment() {
 
 async function submitTimelog() {
   const issueId = currentDetailIssueId;
+  const request = detailLoader.capture();
   if (!issueId) return;
   const hoursInput = document.getElementById('timelog-hours');
   const activitySelect = document.getElementById('timelog-activity');
@@ -897,7 +897,7 @@ async function submitTimelog() {
       return;
     }
     showToast('Time logged', 'success');
-    if (isShowingIssue(issueId)) await openIssueDetail(issueId);
+    if (isShowingIssue(issueId, request.connection)) await openIssueDetail(issueId);
   } catch (err) {
     showToast(`Couldn't log time: ${err.message || err}`, 'error');
   } finally {
