@@ -4,7 +4,7 @@ const timer = require('./timer');
 
 function isTimerSnapshot(value) {
   const state = value?.state;
-  if (value?.version !== 1 || !Number.isFinite(value.savedAt) || typeof value.connectionScope !== 'string' || !state) return false;
+  if (value?.version !== 1 || !Number.isFinite(value.savedAt) || typeof value.connectionScope !== 'string' || typeof value.submissionPending !== 'boolean' || !state) return false;
   if (state.status === 'idle') return true;
   return ['running', 'paused'].includes(state.status)
     && Number.isInteger(state.ticketId) && state.ticketId > 0

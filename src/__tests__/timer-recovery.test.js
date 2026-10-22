@@ -143,4 +143,19 @@ describe('durable timer recovery', () => {
     fs.writeFileSync(s.file, JSON.stringify({ version: 1, savedAt: 1, connectionScope: 'server|1', state: { status: 'running', ticketId: -1 } }));
     expect(s.store.load()).toBeNull();
   });
+  it('ignores persisted timers with a non-boolean submission flag', async () => {
+    const s = setup();
+    fs.writeFileSync(s.file, JSON.stringify({
+      version: 1,
+      savedAt: 1000,
+      connectionScope: 'server|1',
+      submissionPending: 'false',
+      state: { status: 'paused', ticketId: 42, subject: 'Work', elapsedMs: 0, runningSince: null },
+    }));
+    const choose = vi.fn();
+    const recovery = createTimerRecovery({ store: s.store, controller: createTimerController(s.options), getScope: s.options.getConnectionScope, choose });
+    expect(recovery.hasPending()).toBe(false);
+    await recovery.offer();
+    expect(choose).not.toHaveBeenCalled();
+  });
 });
