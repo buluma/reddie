@@ -34,25 +34,27 @@ test.describe('board refresh ordering', () => {
     await app.evaluate((_, id) => global.boardRequests.pop().resolve({ items: [{ id, subject: `Ticket ${id}`, status: { id: 1 } }] }), id);
   }
   test('late assigned response cannot overwrite the authored board or cache', async () => {
-    await page.evaluate(() => { void loadFromAPI(); });
+    await page.evaluate(() => { window.assignedLoad = loadFromAPI(); });
     await pending(1);
-    await page.locator('[data-mode="authored"]').click();
+    await page.evaluate(() => { window.authoredLoad = setBoardMode('authored'); });
     await pending(2);
     await resolveNewest(202);
+    await page.evaluate(() => window.authoredLoad);
     await expect(page.locator('#backlog-list')).toContainText('Ticket 202');
     await resolveNewest(101);
-    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await page.evaluate(() => window.assignedLoad);
     await expect(page.locator('#backlog-list')).not.toContainText('Ticket 101');
     const cache = await page.evaluate(() => JSON.parse(localStorage.getItem('kanban-state-authored')));
     expect(cache.backlog.map(t => t.issueId)).toEqual([202]);
   });
   test('newer same-mode refresh wins and preserves scratch cards', async () => {
-    await page.evaluate(() => { addTask('todo'); void loadFromAPI(); void loadFromAPI(); });
+    await page.evaluate(() => { addTask('todo'); window.olderLoad = loadFromAPI(); window.newerLoad = loadFromAPI(); });
     await pending(2);
     await resolveNewest(303);
+    await page.evaluate(() => window.newerLoad);
     await expect(page.locator('#backlog-list')).toContainText('Ticket 303');
     await resolveNewest(202);
-    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await page.evaluate(() => window.olderLoad);
     await expect(page.locator('#backlog-list')).toContainText('Ticket 303');
     await expect(page.locator('#todo-list .task-card')).toHaveCount(1);
     const cache = await page.evaluate(() => JSON.parse(localStorage.getItem('kanban-state-authored')));
@@ -60,12 +62,13 @@ test.describe('board refresh ordering', () => {
     expect(cache.todo[0].issueId).toBeNull();
   });
   test('late failures do not surface against the newer board', async () => {
-    await page.evaluate(() => { void loadFromAPI(); void loadFromAPI(); });
+    await page.evaluate(() => { window.olderLoad = loadFromAPI(); window.newerLoad = loadFromAPI(); });
     await pending(2);
     await resolveNewest(404);
+    await page.evaluate(() => window.newerLoad);
     await expect(page.locator('#backlog-list')).toContainText('Ticket 404');
     await app.evaluate(() => global.boardRequests.pop().resolve({ error: 'Obsolete error' }));
-    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await page.evaluate(() => window.olderLoad);
     await expect(page.locator('#toast-container')).not.toContainText('Obsolete error');
   });
 });
