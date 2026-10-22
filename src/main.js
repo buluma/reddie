@@ -176,8 +176,8 @@ const TRAY_COLORS = { none: '#808080', low: '#30d158', medium: '#ff9f0a', high: 
 // SHA-24: the running/paused time-tracker state, one active timer across the
 // whole app. Lives here (not the renderer) for the same reason latestTrayData
 // does - it must survive the window being hidden-to-tray and a renderer
-// reload. In-memory only for now: a timer does not survive a full app quit,
-// same scope as the rest of the tray state.
+// reload. Transitions and periodic checkpoints are saved atomically; a
+// restart offers explicit recovery as paused under the original account.
 let timerStore;
 let timerRecovery;
 const timerController = createTimerController({
