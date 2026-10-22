@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app, safeStorage } = require('electron');
+const { writeJsonAtomic } = require('./atomic-json');
 
 // Persists Settings (Redmine URL + API key) to disk in the OS-appropriate
 // userData directory. The API key is encrypted at rest via Electron's
@@ -70,7 +71,7 @@ function persistConfig({ redmineBaseUrl, redmineApiKey, columnOverrides, textFor
       out.redmineApiKeyPlaintext = redmineApiKey;
     }
   }
-  fs.writeFileSync(getConfigPath(), JSON.stringify(out, null, 2), { mode: 0o600 });
+  writeJsonAtomic(getConfigPath(), out);
 }
 
 // Narrow read used before createWindow() - avoids loadPersistedConfig()'s

@@ -7,9 +7,12 @@ const AUTO_REFRESH_MS = 60000;
 // Each mode keeps its own localStorage state (and its own local scratch
 // cards) so switching doesn't bleed one board's cards into the other.
 let boardMode = 'assigned';
+let boardScope = '';
+let connectionGeneration = 0;
 
 function getStateKey() {
-  return boardMode === 'authored' ? 'kanban-state-authored' : 'kanban-state';
+  const key = boardMode === 'authored' ? 'kanban-state-authored' : 'kanban-state';
+  return boardScope ? `${key}:${encodeURIComponent(boardScope)}` : key;
 }
 
 // Populated from the connected Redmine instance's real issue_statuses via
@@ -57,6 +60,27 @@ let redmineBaseUrl = '';
 async function loadRedmineBaseUrl() {
   const config = await window.reddieAPI.getConfig();
   redmineBaseUrl = (config && config.redmineBaseUrl || '').replace(/\/+$/, '');
+  const nextScope = config.connectionScope || '';
+  if (nextScope === boardScope) return;
+  connectionGeneration += 1;
+  boardScope = nextScope;
+  // Legacy API cards have no provable account identity. Migrate scratch
+  // cards once, without carrying remote data into a different account.
+  if (boardScope) {
+    for (const key of ['kanban-state', 'kanban-state-authored']) {
+      const legacy = localStorage.getItem(key);
+      if (!legacy) continue;
+      try {
+        const state = JSON.parse(legacy);
+        const scopedKey = `${key}:${encodeURIComponent(boardScope)}`;
+        const scoped = JSON.parse(localStorage.getItem(scopedKey) || '{}');
+        const localOnly = Object.fromEntries(columns.map(column => [column, (state[column] || []).filter(task => !task.issueId)]));
+        const merged = Object.fromEntries(columns.map(column => [column, [...(scoped[column] || []), ...localOnly[column]]]));
+        localStorage.setItem(scopedKey, JSON.stringify(merged));
+        localStorage.removeItem(key);
+      } catch { /* Preserve malformed legacy state for manual recovery. */ }
+    }
+  }
 }
 
 // Theme
@@ -268,6 +292,7 @@ function cacheImageDataUrl(src, dataUrl) {
 }
 
 async function hydrateAuthenticatedImages(container) {
+  const connection = connectionGeneration;
   const images = Array.from(container.querySelectorAll('img[src]'));
   await Promise.all(images.map(async (img) => {
     const src = img.getAttribute('src');
@@ -279,6 +304,7 @@ async function hydrateAuthenticatedImages(container) {
       return;
     }
     const result = await window.reddieAPI.fetchImage(src);
+    if (connection !== connectionGeneration) return;
     if (result && result.ok) {
       cacheImageDataUrl(src, result.dataUrl);
       img.src = result.dataUrl;
@@ -499,7 +525,6 @@ let currentDetailSubject = null;
 // only ever holds the *rendered* HTML, so editing needs the source stashed
 // separately (same reasoning as currentDetailSubject above).
 let currentDetailDescription = null;
-
 // SHA-24 time tracker. One active timer app-wide, held in main.js
 // (reddieTimer's pure state shape) - mirrored here so the widget can render
 // without an IPC round trip on every tick. `timerTickInterval` repaints the
@@ -511,6 +536,9 @@ let timerTickInterval = null;
 
 async function openIssueDetail(issueId) {
   const generation = ++detailGeneration;
+  const connection = connectionGeneration;
+  const isCurrent = () => isCurrentDetail(issueId, generation)
+    && connection === connectionGeneration;
   currentDetailIssueId = issueId;
   document.getElementById('issue-detail-modal').classList.add('show');
   document.getElementById('detail-subject').textContent = 'Loading…';
@@ -518,7 +546,7 @@ async function openIssueDetail(issueId) {
   document.getElementById('comment-input').value = '';
 
   const result = await window.reddieAPI.fetchIssueDetail(issueId);
-  if (!isCurrentDetail(issueId, generation)) return;
+  if (!isCurrent()) return;
   if (!result || result.error || !result.issue) {
     document.getElementById('detail-subject').textContent = 'Error';
     document.getElementById('detail-body').innerHTML = `<div class="detail-empty">${escapeHtml((result && result.error) || 'Failed to load issue.')}</div>`;
@@ -534,7 +562,7 @@ async function openIssueDetail(issueId) {
         window.reddieAPI.fetchProjectVersions(projectId),
       ])
     : [{ items: [] }, { items: [] }, { items: [] }, { items: [] }];
-  if (!isCurrentDetail(issueId, generation)) return;
+  if (!isCurrent()) return;
   currentDetailMembers = (membersResult && membersResult.items) || [];
   currentDetailTrackers = (trackersResult && trackersResult.items) || [];
   currentDetailCategories = (categoriesResult && categoriesResult.items) || [];
@@ -1092,13 +1120,21 @@ async function saveSettings() {
   };
 
   // Save to main process
+  connectionGeneration += 1;
   const result = await window.reddieAPI.saveConfig(newConfig);
-  textFormatSetting = newConfig.textFormat || 'auto';
 
   if (result.error) {
     setConnectionStatus('error', result.error);
     alert('Error: ' + result.error);
   } else {
+    textFormatSetting = newConfig.textFormat || 'auto';
+    if (result.scopeChanged) {
+      closeIssueDetail();
+      knownIssueColumns = {};
+      imageDataUrlCache.clear();
+      await loadRedmineBaseUrl();
+      renderState(getState() || {});
+    }
     setConnectionStatus('connected', 'Connected');
     // main.js persists this itself now (config-store.js, encrypted via
     // safeStorage) - no localStorage cache needed here.
@@ -1349,7 +1385,10 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
   const mode = boardMode;
   const generation = ++boardGeneration;
   const stateKey = getStateKey();
-  const isCurrent = () => generation === boardGeneration && mode === boardMode;
+  const connection = connectionGeneration;
+  const isCurrent = () => generation === boardGeneration
+    && mode === boardMode
+    && connection === connectionGeneration;
   try {
     const response = mode === 'authored'
       ? await window.reddieAPI.fetchAuthoredIssues()
