@@ -500,12 +500,6 @@ function renderIssueDetail(issue, timeEntries, members) {
 }
 
 let currentDetailIssueId = null;
-let detailGeneration = 0;
-
-function isCurrentDetail(issueId, generation) {
-  return issueId === currentDetailIssueId && generation === detailGeneration;
-}
-
 function isShowingIssue(issueId) {
   return issueId === currentDetailIssueId;
 }
@@ -534,45 +528,40 @@ let currentDetailDescription = null;
 let currentTimerState = reddieTimer.initialTimerState();
 let timerTickInterval = null;
 
-async function openIssueDetail(issueId) {
-  const generation = ++detailGeneration;
-  const connection = connectionGeneration;
-  const isCurrent = () => isCurrentDetail(issueId, generation)
-    && connection === connectionGeneration;
-  currentDetailIssueId = issueId;
-  document.getElementById('issue-detail-modal').classList.add('show');
-  document.getElementById('detail-subject').textContent = 'Loading…';
-  document.getElementById('detail-body').innerHTML = '<div class="detail-loading">Loading…</div>';
-  document.getElementById('comment-input').value = '';
-
-  const result = await window.reddieAPI.fetchIssueDetail(issueId);
-  if (!isCurrent()) return;
-  if (!result || result.error || !result.issue) {
+const detailLoader = reddieIssueLoader.createIssueDetailLoader({
+  api: window.reddieAPI,
+  getConnection: () => connectionGeneration,
+  onStart: (issueId) => {
+    currentDetailIssueId = issueId;
+    document.getElementById('issue-detail-modal').classList.add('show');
+    document.getElementById('detail-subject').textContent = 'Loading…';
+    document.getElementById('detail-body').innerHTML = '<div class="detail-loading">Loading…</div>';
+    document.getElementById('comment-input').value = '';
+  },
+  onLoad: ({ issue, timeEntries, members, trackers, categories, versions }) => {
+    currentDetailMembers = members;
+    currentDetailTrackers = trackers;
+    currentDetailCategories = categories;
+    currentDetailVersions = versions;
+    renderIssueDetail(issue, timeEntries, members);
+  },
+  onError: (error) => {
     document.getElementById('detail-subject').textContent = 'Error';
-    document.getElementById('detail-body').innerHTML = `<div class="detail-empty">${escapeHtml((result && result.error) || 'Failed to load issue.')}</div>`;
-    return;
-  }
+    document.getElementById('detail-body').innerHTML = `<div class="detail-empty">${escapeHtml(error.message)}</div>`;
+  },
+});
 
-  const projectId = result.issue.project && result.issue.project.id;
-  const [membersResult, trackersResult, categoriesResult, versionsResult] = projectId
-    ? await Promise.all([
-        window.reddieAPI.fetchProjectMembers(projectId),
-        window.reddieAPI.fetchProjectTrackers(projectId),
-        window.reddieAPI.fetchProjectCategories(projectId),
-        window.reddieAPI.fetchProjectVersions(projectId),
-      ])
-    : [{ items: [] }, { items: [] }, { items: [] }, { items: [] }];
-  if (!isCurrent()) return;
-  currentDetailMembers = (membersResult && membersResult.items) || [];
-  currentDetailTrackers = (trackersResult && trackersResult.items) || [];
-  currentDetailCategories = (categoriesResult && categoriesResult.items) || [];
-  currentDetailVersions = (versionsResult && versionsResult.items) || [];
-  renderIssueDetail(result.issue, result.timeEntries, currentDetailMembers);
+function openIssueDetail(issueId) {
+  return detailLoader.load(issueId);
+}
+
+function isCurrentDetail(issueId, generation) {
+  return detailLoader.isCurrent({ ...detailLoader.capture(), issueId, generation });
 }
 
 async function changeAssignee(value) {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
+  const generation = detailLoader.capture().generation;
   if (!issueId) return;
   const select = document.getElementById('assignee-select');
   const userId = value ? Number(value) : null;
@@ -597,7 +586,7 @@ async function changeAssignee(value) {
 
 async function changePriority(value) {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
+  const generation = detailLoader.capture().generation;
   if (!issueId) return;
   const select = document.getElementById('priority-select');
   const priorityId = Number(value);
@@ -622,7 +611,7 @@ async function changePriority(value) {
 // changePriority/changeAssignee above.
 async function changeIssueField(field, value) {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
+  const generation = detailLoader.capture().generation;
   if (!issueId) return;
   try {
     const result = await window.reddieAPI.updateIssue(issueId, { [field]: value });
@@ -649,7 +638,7 @@ function editDescription() {
 
 async function saveDescriptionEdit() {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
+  const generation = detailLoader.capture().generation;
   if (!issueId) return;
   const display = document.getElementById('description-display');
   const input = document.getElementById('description-input');
@@ -700,7 +689,7 @@ async function uploadAttachment() {
 }
 
 function closeIssueDetail() {
-  detailGeneration += 1;
+  detailLoader.invalidate();
   document.getElementById('issue-detail-modal').classList.remove('show');
   currentDetailIssueId = null;
   currentDetailMembers = [];
@@ -821,7 +810,7 @@ async function completeTimerHere() {
 
 async function saveSubjectEdit() {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
+  const generation = detailLoader.capture().generation;
   if (!issueId) return;
   const el = document.getElementById('detail-subject');
   const subject = el.textContent.trim();
@@ -850,7 +839,7 @@ async function saveSubjectEdit() {
 
 async function postComment() {
   const issueId = currentDetailIssueId;
-  const generation = detailGeneration;
+  const generation = detailLoader.capture().generation;
   const input = document.getElementById('comment-input');
   const btn = document.getElementById('comment-submit-btn');
   const comment = input.value.trim();
@@ -1379,21 +1368,12 @@ function notifyRemoteChanges(nextIssueColumns) {
 }
 
 let promptedForSettings = false;
-let boardGeneration = 0;
 
-async function loadFromAPI({ notifyChanges = false } = {}) {
-  const mode = boardMode;
-  const generation = ++boardGeneration;
-  const stateKey = getStateKey();
-  const connection = connectionGeneration;
-  const isCurrent = () => generation === boardGeneration
-    && mode === boardMode
-    && connection === connectionGeneration;
-  try {
-    const response = mode === 'authored'
-      ? await window.reddieAPI.fetchAuthoredIssues()
-      : await window.reddieAPI.fetchIssues();
-    if (!isCurrent()) return;
+const boardLoader = reddieBoardLoader.createBoardLoader({
+  getContext: () => ({ mode: boardMode, connection: connectionGeneration, stateKey: getStateKey() }),
+  fetchIssues: () => window.reddieAPI.fetchIssues(),
+  fetchAuthoredIssues: () => window.reddieAPI.fetchAuthoredIssues(),
+  onResult: (response, context, { notifyChanges = false }) => {
     if (response.notConfigured) {
       // Nothing to fetch until Settings has a URL + API key. Show whatever
       // local cards exist (clearing the first-launch "Loading…"
@@ -1413,23 +1393,8 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
     }
 
     const issues = response.items || [];
-    // Instance-wide format guess for the 'auto' setting - the board list
-    // already carries each issue's description, so re-detect on every refresh.
     detectedFormat = reddieTextFormat.detectTextFormat(issues.map((i) => i.description));
-    const apiState = {};
-    columns.forEach(id => { apiState[id] = []; });
-    const nextIssueColumns = {};
-
-    issues.forEach(issue => {
-      const column = getColumnFromStatus(issue.status);
-      const content = issue.subject || `Issue #${issue.id}`;
-      apiState[column].push({
-        id: `api-${issue.id}`,
-        content: content,
-        issueId: issue.id
-      });
-      nextIssueColumns[issue.id] = { column, subject: content };
-    });
+    const { apiState, nextIssueColumns, unfinished, mergedState } = reddieBoardLoader.buildBoardState(issues, getState() || {}, getColumnFromStatus);
 
     if (notifyChanges) notifyRemoteChanges(nextIssueColumns);
     knownIssueColumns = nextIssueColumns;
@@ -1440,27 +1405,18 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
     // wearing this one's chrome. While viewing the authored board, leave
     // the tray on its last assigned snapshot rather than zeroing it out -
     // an unrelated view toggle shouldn't clear the pending-work badge.
-    if (mode === 'assigned') {
-      const unfinished = issues.filter(i => getColumnFromStatus(i.status) !== 'done');
+    if (context.mode === 'assigned') {
       updateTrayStatus(unfinished, apiState);
     }
 
-    // Merge with existing state instead of overwriting it: keep any
-    // manually-added local card (no issueId) exactly where it was, and
-    // replace all API-derived cards with the fresh fetch.
-    const prevState = getState() || {};
-    const mergedState = {};
-    columns.forEach(id => {
-      const localOnly = (prevState[id] || []).filter(task => !task.issueId);
-      mergedState[id] = [...apiState[id], ...localOnly];
-    });
-
-    localStorage.setItem(stateKey, JSON.stringify(mergedState));
+    localStorage.setItem(context.stateKey, JSON.stringify(mergedState));
     renderState(mergedState);
-  } catch (err) {
-    if (!isCurrent()) return;
-    console.error('Failed to load from API:', err);
-  }
+  },
+  onError: (error) => console.error('Failed to load from API:', error),
+});
+
+function loadFromAPI(options) {
+  return boardLoader.load(options);
 }
 
 async function setBoardMode(mode) {

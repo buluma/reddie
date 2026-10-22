@@ -1,19 +1,7 @@
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { test, expect, _electron: electron } = require('@playwright/test');
-
-// Returns the main board window (index.html), waiting for it to appear -
-// distinct from the hidden tray popover window the app also opens.
-async function getMainWindow(app) {
-  const deadline = Date.now() + 10000;
-  while (Date.now() < deadline) {
-    const match = app.windows().find((w) => w.url().includes('index.html'));
-    if (match) return match;
-    await app.waitForEvent('window').catch(() => {});
-  }
-  throw new Error('main window (index.html) never appeared');
-}
+const { test, expect } = require('@playwright/test');
+const { launchTestApp } = require('./helpers/app');
 
 // Reads a window's CSP <meta> as { directive: [sources] }. Eval blocking
 // can't be checked by behaviour here: while Playwright's DevTools session is
@@ -46,35 +34,23 @@ async function cspDirectives(win) {
 test.describe('app launch', () => {
   let app;
   let page;
+  let fixture;
   const pageErrors = [];
   // Chromium reports CSP violations as console errors, not page errors.
   const cspViolations = [];
 
   test.beforeAll(async () => {
-    app = await electron.launch({
-      // A throwaway userData dir: without it the app reads the developer's
-      // real saved Settings (config.json), which would connect to a live
-      // instance and make this test anything but hermetic.
-      args: [path.join(__dirname, '..'), `--user-data-dir=${fs.mkdtempSync(path.join(os.tmpdir(), 'reddie-e2e-'))}`],
-      // Force the no-credentials path so the test never depends on a
-      // developer's local .env pointing at a live instance.
-      env: { ...process.env, REDMINE_API_KEY: '', REDMINE_BASE_URL: '' },
-    });
-    // The app opens two BrowserWindows - the main board (index.html) and the
-    // hidden tray popover (tray-popover.html) - and both carry the title
-    // "Reddie", so firstWindow() would non-deterministically hand back
-    // whichever raced to open first. Select the main window by URL instead.
-    page = await getMainWindow(app);
-    // Attach before waiting on load so a boot-time renderer error is caught.
-    page.on('pageerror', (err) => pageErrors.push(err.message));
-    page.on('console', (msg) => {
-      if (msg.type() === 'error' && /Content Security Policy/i.test(msg.text())) cspViolations.push(msg.text());
-    });
-    await page.waitForLoadState('domcontentloaded');
+    fixture = await launchTestApp({ onPage: (window) => {
+      window.on('pageerror', (err) => pageErrors.push(err.message));
+      window.on('console', (msg) => {
+        if (msg.type() === 'error' && /Content Security Policy/i.test(msg.text())) cspViolations.push(msg.text());
+      });
+    } });
+    ({ app, page } = fixture);
   });
 
   test.afterAll(async () => {
-    await app.close();
+    await fixture?.close();
   });
 
   test('opens a window titled Reddie', async () => {

@@ -55,6 +55,8 @@ module.exports = [
         reddieTimer: 'readonly',
         // src/issue-detail-helpers.js's global export, consumed by renderer.js.
         reddieIssueDetailHelpers: 'readonly',
+        reddieIssueLoader: 'readonly',
+        reddieBoardLoader: 'readonly',
         // Preload bridges (contextBridge.exposeInMainWorld).
         trayAPI: 'readonly',
         module: 'writable',
