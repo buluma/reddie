@@ -9,6 +9,7 @@ const { createTimerController } = require('./timer-controller');
 const { createConnectionManager } = require('./connection-manager');
 const { createTimerStore } = require('./timer-store');
 const { createTimerRecovery } = require('./timer-recovery');
+const { registerTimerIpc } = require('./timer-ipc');
 
 // Auto-download/install is off on purpose: macOS's Squirrel.Mac (the
 // updater apply step electron-updater uses under the hood) requires the
@@ -808,34 +809,15 @@ ipcMain.handle('add-timelog', async (event, { issueId, hours, activityId, commen
 // renderer decides what to do about that (offer to cancel/complete the other
 // one), this layer just relays it, same {error} convention as every other
 // handler here.
-ipcMain.handle('timer-recover', async () => {
-  try {
-    const hadPending = timerRecovery.hasPending();
-    await timerRecovery.offer();
-    broadcastTimerState();
-    return { ok: true, hadPending, state: timerController.getState() };
-  } catch (err) {
-    return { error: err.message };
-  }
+registerTimerIpc({
+  ipcMain,
+  controller: timerController,
+  recovery: {
+    hasPending: () => timerRecovery.hasPending(),
+    offer: () => timerRecovery.offer(),
+  },
+  broadcast: broadcastTimerState,
 });
-
-ipcMain.handle('timer-get-state', async () => timerController.getState());
-
-for (const action of ['start', 'pause', 'reset', 'cancel', 'complete']) {
-  ipcMain.handle(`timer-${action}`, async (event, payload = {}) => {
-    try {
-      if (action === 'start' && timerRecovery.hasPending()) throw new Error('Recover or discard the saved timer in Settings before starting another');
-      const result = action === 'complete'
-        ? await timerController.complete(payload)
-        : { state: timerController[action](payload) };
-      broadcastTimerState();
-      return { ok: true, ...result };
-    } catch (err) {
-      broadcastTimerState();
-      return { error: err.message };
-    }
-  });
-}
 
 ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) {
