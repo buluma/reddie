@@ -6,6 +6,7 @@ const { RedmineClient, buildColumnMapping, sameInstanceImagePath } = require('./
 const { loadPersistedConfig, persistConfig, loadWindowTransparencySetting } = require('./config-store');
 const { autoUpdater } = require('electron-updater');
 const { createTimerController } = require('./timer-controller');
+const { createConnectionManager } = require('./connection-manager');
 
 // Auto-download/install is off on purpose: macOS's Squirrel.Mac (the
 // updater apply step electron-updater uses under the hood) requires the
@@ -60,8 +61,39 @@ let priorities = [];
 let lastStatuses = [];
 let currentUserId = null;
 
-function rebuildClient() {
-  client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
+let connectionManager;
+function getConnectionManager() {
+  if (!connectionManager) {
+    connectionManager = createConnectionManager({
+      initialConfig: config,
+      createClient: (settings) => new RedmineClient(settings.redmineBaseUrl, settings.redmineApiKey),
+      persist: persistConfig,
+      beforeCommit: (candidate, previous) => {
+        if (candidate.scope !== previous.scope && timerController.getState().status !== 'idle') {
+          throw new Error('Complete or cancel the active timer before switching Redmine accounts');
+        }
+      },
+      onCommit: (next, previous) => {
+        config = next.config;
+        client = next.client;
+        if (next.metadata) {
+          const { user, statuses, activities: activityList, priorities: priorityList } = next.metadata;
+          lastStatuses = statuses;
+          columnMapping = buildColumnMapping(statuses, config.columnOverrides);
+          activities = activityList;
+          priorities = priorityList;
+          currentUserId = user.id;
+        }
+        if (next.scope !== previous.scope) {
+          latestTrayData = { count: 0, urgency: 'none', issues: [], columnCounts: {}, connected: false, activeTimer: null };
+          updateTrayAppearance(0, 'none');
+          buildTrayContextMenu();
+          broadcastTimerState();
+        }
+      },
+    });
+  }
+  return connectionManager;
 }
 
 function isConfigured() {
@@ -69,25 +101,8 @@ function isConfigured() {
 }
 
 async function connect() {
-  if (!config.redmineBaseUrl) {
-    return { error: 'No Redmine URL configured' };
-  }
-  if (!config.redmineApiKey) {
-    return { error: 'No API key configured' };
-  }
   try {
-    const [user, statuses, activityList, priorityList] = await Promise.all([
-      client.getCurrentUser(),
-      client.listStatuses(),
-      client.listActivities(),
-      client.listPriorities(),
-    ]);
-    lastStatuses = statuses;
-    columnMapping = buildColumnMapping(statuses, config.columnOverrides);
-    activities = activityList;
-    priorities = priorityList;
-    currentUserId = user && user.id;
-    return { ok: true, user };
+    return await getConnectionManager().check();
   } catch (err) {
     console.error('Connect failed:', err.message);
     return { error: err.message };
@@ -479,13 +494,13 @@ app.whenReady().then(async () => {
 
   // .env wins if it supplied a key; otherwise fall back to the encrypted
   // config from a previous Settings save (see config-store.js).
-  if (!config.redmineApiKey) {
-    const persisted = loadPersistedConfig();
-    if (persisted.redmineApiKey) {
-      config = { ...config, ...persisted };
-      rebuildClient();
-    }
+  const persisted = loadPersistedConfig();
+  config = { ...config, ...persisted };
+  if (DEFAULT_REDMINE_API_KEY) {
+    config.redmineApiKey = DEFAULT_REDMINE_API_KEY;
+    config.redmineBaseUrl = DEFAULT_REDMINE_BASE_URL;
   }
+  client = new RedmineClient(config.redmineBaseUrl, config.redmineApiKey);
 
   if (config.redmineApiKey) {
     await connect();
@@ -526,15 +541,16 @@ app.on('window-all-closed', () => {
 
 // IPC handlers
 ipcMain.handle('get-config', async () => {
-  return config;
+  return { ...config, connectionScope: getConnectionManager().getState().scope };
 });
 
 ipcMain.handle('save-config', async (event, newConfig) => {
-  config = { ...config, ...newConfig };
-  rebuildClient();
-  persistConfig(config);
-  console.log('Config saved:', { ...config, redmineApiKey: config.redmineApiKey ? '(set)' : '' });
-  return await connect();
+  try {
+    const { redmineBaseUrl, redmineApiKey, textFormat } = newConfig;
+    return await getConnectionManager().save({ redmineBaseUrl, redmineApiKey, textFormat });
+  } catch (err) {
+    return { error: err.message };
+  }
 });
 
 ipcMain.handle('check-connection', async () => {
@@ -550,16 +566,22 @@ ipcMain.handle('fetch-statuses', async () => {
 });
 
 ipcMain.handle('save-column-overrides', async (event, overrides) => {
-  config.columnOverrides = overrides;
-  persistConfig(config);
-  columnMapping = buildColumnMapping(lastStatuses, config.columnOverrides);
-  return { ok: true, columnMapping };
+  try {
+    getConnectionManager().updatePreferences({ columnOverrides: overrides });
+    columnMapping = buildColumnMapping(lastStatuses, config.columnOverrides);
+    return { ok: true, columnMapping };
+  } catch (err) {
+    return { error: err.message };
+  }
 });
 
 ipcMain.handle('save-window-transparency', async (event, enabled) => {
-  config.windowTransparency = !!enabled;
-  persistConfig(config);
-  return { ok: true };
+  try {
+    getConnectionManager().updatePreferences({ windowTransparency: !!enabled });
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
 });
 
 ipcMain.handle('fetch-issues', async () => {

@@ -13,7 +13,7 @@ module.exports = [
   js.configs.recommended,
   {
     // Electron main process and its Node-side helpers (CommonJS).
-    files: ['src/main.js', 'src/preload.js', 'src/tray-preload.js', 'src/config-store.js', 'src/timer-controller.js', 'src/redmine-client.js', 'eslint.config.js'],
+    files: ['src/main.js', 'src/preload.js', 'src/tray-preload.js', 'src/config-store.js', 'src/timer-controller.js', 'src/connection-manager.js', 'src/atomic-json.js', 'src/redmine-client.js', 'eslint.config.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',

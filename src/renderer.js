@@ -7,9 +7,12 @@ const AUTO_REFRESH_MS = 60000;
 // Each mode keeps its own localStorage state (and its own local scratch
 // cards) so switching doesn't bleed one board's cards into the other.
 let boardMode = 'assigned';
+let boardScope = '';
+let connectionGeneration = 0;
 
 function getStateKey() {
-  return boardMode === 'authored' ? 'kanban-state-authored' : 'kanban-state';
+  const key = boardMode === 'authored' ? 'kanban-state-authored' : 'kanban-state';
+  return boardScope ? `${key}:${encodeURIComponent(boardScope)}` : key;
 }
 
 // Populated from the connected Redmine instance's real issue_statuses via
@@ -57,6 +60,27 @@ let redmineBaseUrl = '';
 async function loadRedmineBaseUrl() {
   const config = await window.reddieAPI.getConfig();
   redmineBaseUrl = (config && config.redmineBaseUrl || '').replace(/\/+$/, '');
+  const nextScope = config.connectionScope || '';
+  if (nextScope === boardScope) return;
+  connectionGeneration += 1;
+  boardScope = nextScope;
+  // Legacy API cards have no provable account identity. Migrate scratch
+  // cards once, without carrying remote data into a different account.
+  if (boardScope) {
+    for (const key of ['kanban-state', 'kanban-state-authored']) {
+      const legacy = localStorage.getItem(key);
+      if (!legacy) continue;
+      try {
+        const state = JSON.parse(legacy);
+        const scopedKey = `${key}:${encodeURIComponent(boardScope)}`;
+        if (!localStorage.getItem(scopedKey)) {
+          const localOnly = Object.fromEntries(columns.map(column => [column, (state[column] || []).filter(task => !task.issueId)]));
+          localStorage.setItem(scopedKey, JSON.stringify(localOnly));
+        }
+        localStorage.removeItem(key);
+      } catch { /* Preserve malformed legacy state for manual recovery. */ }
+    }
+  }
 }
 
 // Theme
@@ -1092,13 +1116,22 @@ async function saveSettings() {
   };
 
   // Save to main process
+  connectionGeneration += 1;
   const result = await window.reddieAPI.saveConfig(newConfig);
-  textFormatSetting = newConfig.textFormat || 'auto';
 
   if (result.error) {
     setConnectionStatus('error', result.error);
     alert('Error: ' + result.error);
   } else {
+    connectionGeneration += 1;
+    textFormatSetting = newConfig.textFormat || 'auto';
+    if (result.scopeChanged) {
+      closeIssueDetail();
+      knownIssueColumns = {};
+      imageDataUrlCache.clear();
+      await loadRedmineBaseUrl();
+      renderState(getState() || {});
+    }
     setConnectionStatus('connected', 'Connected');
     // main.js persists this itself now (config-store.js, encrypted via
     // safeStorage) - no localStorage cache needed here.
@@ -1349,7 +1382,10 @@ async function loadFromAPI({ notifyChanges = false } = {}) {
   const mode = boardMode;
   const generation = ++boardGeneration;
   const stateKey = getStateKey();
-  const isCurrent = () => generation === boardGeneration && mode === boardMode;
+  const connection = connectionGeneration;
+  const isCurrent = () => generation === boardGeneration
+    && mode === boardMode
+    && connection === connectionGeneration;
   try {
     const response = mode === 'authored'
       ? await window.reddieAPI.fetchAuthoredIssues()
