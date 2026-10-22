@@ -292,6 +292,7 @@ function cacheImageDataUrl(src, dataUrl) {
 }
 
 async function hydrateAuthenticatedImages(container) {
+  const connection = connectionGeneration;
   const images = Array.from(container.querySelectorAll('img[src]'));
   await Promise.all(images.map(async (img) => {
     const src = img.getAttribute('src');
@@ -303,6 +304,7 @@ async function hydrateAuthenticatedImages(container) {
       return;
     }
     const result = await window.reddieAPI.fetchImage(src);
+    if (connection !== connectionGeneration) return;
     if (result && result.ok) {
       cacheImageDataUrl(src, result.dataUrl);
       img.src = result.dataUrl;
@@ -1118,6 +1120,7 @@ async function saveSettings() {
   };
 
   // Save to main process
+  connectionGeneration += 1;
   const result = await window.reddieAPI.saveConfig(newConfig);
 
   if (result.error) {
@@ -1126,7 +1129,6 @@ async function saveSettings() {
   } else {
     textFormatSetting = newConfig.textFormat || 'auto';
     if (result.scopeChanged) {
-      connectionGeneration += 1;
       closeIssueDetail();
       knownIssueColumns = {};
       imageDataUrlCache.clear();
