@@ -153,9 +153,22 @@ test('a failed atomic config replacement preserves the prior saved settings', as
     const configPath = path.join(userData, 'config.json');
     const before = fs.readFileSync(configPath, 'utf8');
 
-    fs.chmodSync(userData, 0o500);
+    // Inject a replacement failure in the main process; chmod on a directory
+    // does not prevent writes on Windows.
+    await app.evaluate((_, destination) => {
+      const fs = process.getBuiltinModule('fs');
+      const requirePath = process.getBuiltinModule('path');
+      const rename = fs.renameSync;
+      fs.renameSync = (...args) => {
+        if (fs.realpathSync.native(requirePath.dirname(args[1])) === fs.realpathSync.native(requirePath.dirname(destination)) && requirePath.basename(args[1]) === 'config.json') {
+          const error = new Error('EACCES: permission denied');
+          error.code = 'EACCES';
+          throw error;
+        }
+        return rename(...args);
+      };
+    }, configPath);
     const failed = await page.evaluate(base => window.reddieAPI.saveConfig({ redmineBaseUrl: base, redmineApiKey: 'atomic-key', textFormat: 'textile' }), base);
-    fs.chmodSync(userData, 0o700);
     expect(failed.error).toMatch(/EACCES|permission denied/i);
     expect(fs.readFileSync(configPath, 'utf8')).toBe(before);
     expect(fs.readdirSync(userData).filter(name => name.endsWith('.tmp'))).toEqual([]);
