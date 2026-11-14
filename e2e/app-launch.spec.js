@@ -182,6 +182,13 @@ test.describe('app launch', () => {
     await expect(page.locator('#settings-modal')).not.toHaveClass(/show/);
   });
 
+  test('no CSP violations during boot or the checks above', async () => {
+    // The connect-src probe above is a deliberate violation - ignore it.
+    expect(cspViolations.filter((m) => !m.includes('example.invalid'))).toEqual([]);
+  });
+
+  // Run the deliberate inline-handler payload after the CSP assertion: parsing
+  // it can itself produce a CSP violation before DOMPurify removes the handler.
   // RDD-30: the libraries the renderer runs must be the ones bun.lock
   // resolved - not stale hand-copied builds - and must still work as the
   // globals renderer.js expects.
@@ -201,8 +208,4 @@ test.describe('app launch', () => {
     expect(result.sortable).toBe('function');
   });
 
-  test('no CSP violations during boot or the checks above', async () => {
-    // The connect-src probe above is a deliberate violation - ignore it.
-    expect(cspViolations.filter((m) => !m.includes('example.invalid'))).toEqual([]);
-  });
 });
